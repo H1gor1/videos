@@ -15,7 +15,13 @@ export const RemixIcon = forwardRef<SVGSVGElement, IconProps & { name: string }>
     return <svg ref={ref} width={size} height={size} viewBox="0 0 24 24"
       aria-hidden={alt ? undefined : true} aria-label={alt} {...props}
       fill="currentColor" stroke="none" data-remix-icon={variant}
-      style={mirrored ? { ...style, transform: `${style?.transform ?? ""} scaleX(-1)` } : style}>
+      style={{
+        display: "inline-block",
+        verticalAlign: "middle",
+        flexShrink: 0,
+        ...style,
+        ...(mirrored ? { transform: `${style?.transform ?? ""} scaleX(-1)` } : undefined),
+      }}>
       {alt && <title>{alt}</title>}
       <IconGlyph id={`ri-${variant}`} />
       {children}
@@ -119,3 +125,33 @@ export const XIcon = icon("close-line");
 
 /** Focus the timeline viewport on the selected clip range. */
 export const ZoomSelection = icon("focus-3-line");
+
+export const AlignCenter = icon("align-center");
+export const AlignLeft = icon("align-left");
+export const AlignRight = icon("align-right");
+export const ArrowDown = icon("arrow-down-line");
+export const ArrowGoBack = icon("arrow-go-back-line");
+export const ArrowGoForward = icon("arrow-go-forward-line");
+export const ArrowRight = icon("arrow-right-line");
+export const ArrowUp = icon("arrow-up-line");
+export const BookOpen = icon("book-open-line");
+export const Box3D = icon("box-3-line");
+export const Download = icon("download-2-line");
+export const FastForward = icon("speed-fill");
+export const FloppyDisk = icon("save-line");
+export const Lightbulb = icon("lightbulb-line");
+export const Microphone = icon("mic-line");
+export const Movie = icon("movie-line");
+export const Pause = icon("pause-fill");
+export const Play = icon("play-fill");
+export const Refresh = icon("refresh-line");
+export const Rewind = icon("rewind-fill");
+export const Rocket = icon("rocket-line");
+export const Search = icon("search-line");
+export const ShapeBox = icon("shape-2-line");
+export const ShieldCheck = icon("shield-check-line");
+export const SkipLeft = icon("skip-left-fill");
+export const SkipRight = icon("skip-right-fill");
+export const SpeakerLow = icon("volume-down-line");
+export const Upload = icon("upload-2-line");
+export const User = icon("user-3-line");

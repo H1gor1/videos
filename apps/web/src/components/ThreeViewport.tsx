@@ -27,6 +27,20 @@ import {
   type SnapGuide,
   type SpacingGuide,
 } from '../editor/snapEngine.ts';
+import {
+  ALL_RESIZE_HANDLES,
+  computeResizedRect720,
+  DragCommitSession,
+  type OverlayGestureKind,
+  type ResizeHandleKind,
+} from '../editor/overlayDragSession.ts';
+
+export interface LiveObject3DTransform {
+  objectId: string;
+  position: [number, number, number];
+  rotation: [number, number, number];
+  scale: [number, number, number];
+}
 
 export interface Scene3DObjectDescriptor {
   id: string;
@@ -55,10 +69,16 @@ export interface ScenePreviewProps {
   selectedOverlayIndices?: number[];
   onSelectOverlays?: (indices: number[]) => void;
   onOverlayCommit?: (index: number, patch: Partial<OverlayItem>, label: string) => void;
+  onOverlaysPatchBatchCommit?: (
+    patches: Array<{ index: number; patch: Partial<OverlayItem> }>,
+    label: string
+  ) => void;
   onOverlaysBatchCommit?: (nextOverlays: OverlayItem[], label: string) => void;
+  onLiveOverlayTransformsChange?: (drafts: Record<number, Partial<OverlayItem>>) => void;
   selectedObject3DId?: string | null;
   onSelectObject3D?: (objectId: string | null) => void;
   onObject3DCommit?: (objectId: string, override: SceneObjectOverride, label: string) => void;
+  onLiveObject3DTransform?: (live: LiveObject3DTransform | null) => void;
   onCatalogObjects3D?: (objects: Scene3DObjectDescriptor[]) => void;
   onCameraKeyframeCommit?: (cameraOverride: CameraKeyframeOverride | undefined, label: string) => void;
   onCaptionPositionCommit?: (positionY: number) => void;
@@ -79,7 +99,7 @@ const VIEW_W = 360;
 const VIEW_H = 640;
 const SCALE = VIEW_W / COMP_W; // 0.5
 
-function defaultOverlayRect720(
+export function defaultOverlayRect720(
   ov: OverlayItem,
   idx: number,
   zones: ReturnType<typeof computeOverlayLayoutZones>
@@ -130,6 +150,7 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
 
   // Estado de drag/resize/rotate 2D no canvas
   const [draftOverlayRects, setDraftOverlayRects] = useState<Record<number, Partial<OverlayItem>>>({});
+  const [draftCaptionPosY, setDraftCaptionPosY] = useState<number | null>(null);
   const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([]);
   const [spacingGuides, setSpacingGuides] = useState<SpacingGuide[]>([]);
   const [inlineEditIdx, setInlineEditIdx] = useState<number | null>(null);
@@ -215,10 +236,51 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
     let transformHelper: THREE.Object3D | null = null;
     let orbitControls: OrbitControls | null = null;
     let isDraggingGizmo = false;
+    let gizmoStartTransform: {
+      p: [number, number, number];
+      r: [number, number, number];
+      s: [number, number, number];
+    } | null = null;
+    let gizmoCancelled = false;
+    let gizmoLiveRaf = 0;
+
+    const readObjTransform = (obj: THREE.Object3D, objectId: string): LiveObject3DTransform => ({
+      objectId,
+      position: [
+        Number(obj.position.x.toFixed(2)),
+        Number(obj.position.y.toFixed(2)),
+        Number(obj.position.z.toFixed(2)),
+      ],
+      rotation: [
+        Number(obj.rotation.x.toFixed(2)),
+        Number(obj.rotation.y.toFixed(2)),
+        Number(obj.rotation.z.toFixed(2)),
+      ],
+      scale: [
+        Number(obj.scale.x.toFixed(2)),
+        Number(obj.scale.y.toFixed(2)),
+        Number(obj.scale.z.toFixed(2)),
+      ],
+    });
+
+    const onGizmoEsc = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape' && isDraggingGizmo && built && props.selectedObject3DId) {
+        const targetObj = built.selectableMap?.get(props.selectedObject3DId);
+        if (targetObj && gizmoStartTransform) {
+          gizmoCancelled = true;
+          targetObj.position.set(...gizmoStartTransform.p);
+          targetObj.rotation.set(...gizmoStartTransform.r);
+          targetObj.scale.set(...gizmoStartTransform.s);
+          controller.renderer.render(built.threeScene, controller.camera);
+          props.onLiveObject3DTransform?.(null);
+        }
+      }
+    };
 
     if (props.interactive && built) {
       if (props.canvasTool === '3d' && props.selectedObject3DId) {
-        const targetObj = built.selectableMap?.get(props.selectedObject3DId);
+        const objId = props.selectedObject3DId;
+        const targetObj = built.selectableMap?.get(objId);
         if (targetObj) {
           transformControls = new TransformControls(controller.camera, canvas);
           transformControls.setMode(props.gizmoMode || 'translate');
@@ -226,34 +288,51 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
           transformControls.attach(targetObj);
           transformHelper = transformControls.getHelper();
           built.threeScene.add(transformHelper);
+          window.addEventListener('keydown', onGizmoEsc);
+
+          transformControls.addEventListener('objectChange', () => {
+            if (!isDraggingGizmo || gizmoCancelled) return;
+            if (gizmoLiveRaf) return;
+            gizmoLiveRaf = requestAnimationFrame(() => {
+              gizmoLiveRaf = 0;
+              if (!isDraggingGizmo || gizmoCancelled) return;
+              props.onLiveObject3DTransform?.(readObjTransform(targetObj, objId));
+            });
+          });
 
           transformControls.addEventListener('dragging-changed', (event: any) => {
-            isDraggingGizmo = Boolean(event.value);
-            if (!event.value && targetObj && props.onObject3DCommit && props.selectedObject3DId) {
+            const dragging = Boolean(event.value);
+            isDraggingGizmo = dragging;
+            if (dragging) {
+              gizmoCancelled = false;
+              gizmoStartTransform = {
+                p: [targetObj.position.x, targetObj.position.y, targetObj.position.z],
+                r: [targetObj.rotation.x, targetObj.rotation.y, targetObj.rotation.z],
+                s: [targetObj.scale.x, targetObj.scale.y, targetObj.scale.z],
+              };
+              return;
+            }
+            if (gizmoLiveRaf) {
+              cancelAnimationFrame(gizmoLiveRaf);
+              gizmoLiveRaf = 0;
+            }
+            props.onLiveObject3DTransform?.(null);
+            if (!gizmoCancelled && targetObj && props.onObject3DCommit) {
+              const live = readObjTransform(targetObj, objId);
               const nextOv: SceneObjectOverride = {
-                ...(props.scene.objectOverrides?.[props.selectedObject3DId] || {}),
-                position: [
-                  Number(targetObj.position.x.toFixed(2)),
-                  Number(targetObj.position.y.toFixed(2)),
-                  Number(targetObj.position.z.toFixed(2)),
-                ],
-                rotation: [
-                  Number(targetObj.rotation.x.toFixed(2)),
-                  Number(targetObj.rotation.y.toFixed(2)),
-                  Number(targetObj.rotation.z.toFixed(2)),
-                ],
-                scale: [
-                  Number(targetObj.scale.x.toFixed(2)),
-                  Number(targetObj.scale.y.toFixed(2)),
-                  Number(targetObj.scale.z.toFixed(2)),
-                ],
+                ...(props.scene.objectOverrides?.[objId] || {}),
+                position: live.position,
+                rotation: live.rotation,
+                scale: live.scale,
               };
               props.onObject3DCommit(
-                props.selectedObject3DId,
+                objId,
                 nextOv,
-                `Mover/Transformar Objeto 3D (${props.selectedObject3DId})`
+                `Mover/Transformar Objeto 3D (${objId})`
               );
             }
+            gizmoCancelled = false;
+            gizmoStartTransform = null;
           });
         }
       }
@@ -363,6 +442,8 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
 
     return () => {
       cancelAnimationFrame(rafId);
+      if (gizmoLiveRaf) cancelAnimationFrame(gizmoLiveRaf);
+      window.removeEventListener('keydown', onGizmoEsc);
       if (transformControls) {
         transformControls.detach();
         transformControls.dispose();
@@ -534,8 +615,8 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
   const shadowStyle = dk?.shadowStyle || '0 6px 18px rgba(0,0,0,0.45)';
   const safeArea = dk?.safeArea || { topPx: 64, bottomPx: 130, leftPx: 32, rightPx: 32 };
 
-  const zones = computeOverlayLayoutZones(
-    props.captionStyle || {
+  const effectiveCaptionStyle: CaptionStyle = {
+    ...(props.captionStyle || {
       enabled: true,
       style: 'highlight-yellow',
       wordsPerGroup: 3,
@@ -544,10 +625,11 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
       highlightColor: primaryColor,
       textColor,
       burnIn: true,
-    },
-    COMP_W,
-    COMP_H
-  );
+    }),
+    ...(draftCaptionPosY !== null ? { positionY: draftCaptionPosY } : {}),
+  };
+
+  const zones = computeOverlayLayoutZones(effectiveCaptionStyle, COMP_W, COMP_H);
 
   const overlays = props.scene.overlays || [];
   const selectedIndices = props.selectedOverlayIndices || [];
@@ -604,10 +686,15 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
     const p0: [number, number, number] = [targetObj.position.x, targetObj.position.y, targetObj.position.z];
     const r0: [number, number, number] = [targetObj.rotation.x, targetObj.rotation.y, targetObj.rotation.z];
     const s0: [number, number, number] = [targetObj.scale.x, targetObj.scale.y, targetObj.scale.z];
+    let moved = false;
+    let cancelled = false;
+    let rafId = 0;
+    let lastClientX = startClientX;
+    let lastClientY = startClientY;
 
-    const onMove = (ev: PointerEvent) => {
-      const dx = ev.clientX - startClientX;
-      const dy = ev.clientY - startClientY;
+    const applyAt = (clientX: number, clientY: number) => {
+      const dx = clientX - startClientX;
+      const dy = clientY - startClientY;
       const delta = axis === 'x' ? dx * 0.015 : axis === 'y' ? -dy * 0.015 : (dx - dy) * 0.015;
 
       if (mode === 'translate') {
@@ -634,11 +721,79 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
       if (ctrl && built) {
         ctrl.renderer.render(built.threeScene, ctrl.camera);
       }
+      props.onLiveObject3DTransform?.({
+        objectId: objId,
+        position: [
+          Number(targetObj.position.x.toFixed(2)),
+          Number(targetObj.position.y.toFixed(2)),
+          Number(targetObj.position.z.toFixed(2)),
+        ],
+        rotation: [
+          Number(targetObj.rotation.x.toFixed(2)),
+          Number(targetObj.rotation.y.toFixed(2)),
+          Number(targetObj.rotation.z.toFixed(2)),
+        ],
+        scale: [
+          Number(targetObj.scale.x.toFixed(2)),
+          Number(targetObj.scale.y.toFixed(2)),
+          Number(targetObj.scale.z.toFixed(2)),
+        ],
+      });
+    };
+
+    const cleanup = () => {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = 0;
+      }
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+
+    const onMove = (ev: PointerEvent) => {
+      if (cancelled) return;
+      moved = true;
+      lastClientX = ev.clientX;
+      lastClientY = ev.clientY;
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = 0;
+        if (!cancelled) applyAt(lastClientX, lastClientY);
+      });
+    };
+
+    const onCancel = () => {
+      if (cancelled) return;
+      cancelled = true;
+      cleanup();
+      targetObj.position.set(...p0);
+      targetObj.rotation.set(...r0);
+      targetObj.scale.set(...s0);
+      if (ctrl && built) {
+        ctrl.renderer.render(built.threeScene, ctrl.camera);
+      }
+      props.onLiveObject3DTransform?.(null);
+    };
+
+    const onKeyDown = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') {
+        ev.preventDefault();
+        onCancel();
+      }
     };
 
     const onUp = () => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
+      if (cancelled) return;
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = 0;
+        if (moved) applyAt(lastClientX, lastClientY);
+      }
+      cleanup();
+      props.onLiveObject3DTransform?.(null);
+      if (!moved) return;
       const nextOv: SceneObjectOverride = {
         ...(props.scene.objectOverrides?.[objId] || {}),
         position: [
@@ -662,12 +817,14 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
 
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
+    window.addEventListener('keydown', onKeyDown);
   };
 
-  // Drag / Resize / Rotate de Overlays 2D estilo Figma com Snapping
+  // Drag / Resize (8 handles) / Rotate de Overlays 2D estilo Figma com Snapping + rAF + Esc cancel
   const startOverlay2DGesture = (
     idx: number,
-    gestureKind: 'move' | 'resize-se' | 'resize-e' | 'resize-s' | 'rotate',
+    gestureKind: OverlayGestureKind,
     e: React.PointerEvent
   ) => {
     if (!props.interactive || inlineEditIdx === idx) return;
@@ -692,6 +849,19 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
     const startClientX = e.clientX;
     const startClientY = e.clientY;
 
+    const vpRect = viewportRef.current?.getBoundingClientRect();
+    const scaleX = vpRect && vpRect.width > 0 ? vpRect.width / COMP_W : SCALE;
+    const scaleY = vpRect && vpRect.height > 0 ? vpRect.height / COMP_H : SCALE;
+
+    // Centro do overlay em coordenadas de tela para rotação natural ao redor do pivô
+    const ovCenterClientX = vpRect
+      ? vpRect.left + (initialRect720.left + initialRect720.width / 2) * scaleX
+      : startClientX;
+    const ovCenterClientY = vpRect
+      ? vpRect.top + (initialRect720.top + initialRect720.height / 2) * scaleY
+      : startClientY;
+    const startAngleRad = Math.atan2(startClientY - ovCenterClientY, startClientX - ovCenterClientX);
+
     // Coleta alvos de snap (canvas 720x1280, safe area 9:16 e demais overlays)
     const siblingEntries = overlays
       .map((other, oIdx) => ({
@@ -706,11 +876,55 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
       ...extractSnapTargets(siblingEntries),
     ];
 
-    let latestPatch: Partial<OverlayItem> | null = null;
+    const session = new DragCommitSession<Record<number, Partial<OverlayItem>>>({
+      onLiveUpdate: (drafts) => {
+        setDraftOverlayRects(drafts);
+        props.onLiveOverlayTransformsChange?.(drafts);
+      },
+      onCommit: (drafts) => {
+        setSnapGuides([]);
+        setSpacingGuides([]);
+        setDraftOverlayRects({});
+        props.onLiveOverlayTransformsChange?.({});
 
-    const onMove = (ev: PointerEvent) => {
-      const rawDx720 = (ev.clientX - startClientX) / SCALE;
-      const rawDy720 = (ev.clientY - startClientY) / SCALE;
+        const label =
+          gestureKind === 'move'
+            ? `Mover overlay ${ov.type}`
+            : gestureKind === 'rotate'
+              ? `Rotacionar overlay ${ov.type}`
+              : `Redimensionar overlay ${ov.type}`;
+
+        const entries = Object.entries(drafts).map(([k, patch]) => ({
+          index: Number(k),
+          patch,
+        }));
+        if (entries.length > 1 && props.onOverlaysPatchBatchCommit) {
+          props.onOverlaysPatchBatchCommit(entries, label);
+        } else if (entries[0] && props.onOverlayCommit) {
+          props.onOverlayCommit(entries[0].index, entries[0].patch, label);
+        }
+      },
+      onCancel: () => {
+        setSnapGuides([]);
+        setSpacingGuides([]);
+        setDraftOverlayRects({});
+        props.onLiveOverlayTransformsChange?.({});
+      },
+    });
+
+    let rafId = 0;
+    let hasMoved = false;
+    let latestEventData: { clientX: number; clientY: number; altKey: boolean; shiftKey: boolean } = {
+      clientX: startClientX,
+      clientY: startClientY,
+      altKey: e.altKey,
+      shiftKey: e.shiftKey,
+    };
+
+    const computeAndApplyDraft = () => {
+      if (!session.isActive()) return;
+      const rawDx720 = (latestEventData.clientX - startClientX) / scaleX;
+      const rawDy720 = (latestEventData.clientY - startClientY) / scaleY;
 
       if (gestureKind === 'move') {
         const snapRes = resolveSnapAdjustment({
@@ -718,58 +932,109 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
           proposedDx: rawDx720,
           proposedDy: rawDy720,
           targets: snapTargets,
-          disabled: props.snapEnabled === false || ev.altKey,
+          disabled: props.snapEnabled === false || latestEventData.altKey,
           compWidth: COMP_W,
           compHeight: COMP_H,
         });
         setSnapGuides(snapRes.guides);
         setSpacingGuides(snapRes.spacingGuides);
-        const nx = Math.round(initialRect720.left + snapRes.dx);
-        const ny = Math.round(initialRect720.top + snapRes.dy);
-        latestPatch = { x: nx, y: ny };
-        setDraftOverlayRects({ [idx]: latestPatch });
-      } else if (gestureKind === 'resize-se' || gestureKind === 'resize-e' || gestureKind === 'resize-s') {
-        const nw =
-          gestureKind === 'resize-s'
-            ? initialRect720.width
-            : Math.max(96, Math.round(initialRect720.width + rawDx720));
-        const nh =
-          gestureKind === 'resize-e'
-            ? initialRect720.height
-            : Math.max(36, Math.round(initialRect720.height + rawDy720));
-        latestPatch = {
-          x: initialRect720.left,
-          y: initialRect720.top,
-          width: nw,
-          height: nh,
-        };
-        setDraftOverlayRects({ [idx]: latestPatch });
+        const drafts: Record<number, Partial<OverlayItem>> = {};
+        for (const sIdx of nextSel) {
+          const targetOv = overlays[sIdx];
+          if (!targetOv) continue;
+          const baseRect = defaultOverlayRect720(targetOv, sIdx, zones);
+          drafts[sIdx] = {
+            x: Math.round(baseRect.left + snapRes.dx),
+            y: Math.round(baseRect.top + snapRes.dy),
+          };
+        }
+        session.update(drafts);
       } else if (gestureKind === 'rotate') {
-        const rot = Math.round(initialRotation + rawDx720 * 0.45);
-        latestPatch = { rotation: rot };
-        setDraftOverlayRects({ [idx]: latestPatch });
+        const curAngleRad = Math.atan2(
+          latestEventData.clientY - ovCenterClientY,
+          latestEventData.clientX - ovCenterClientX
+        );
+        let deltaDeg = ((curAngleRad - startAngleRad) * 180) / Math.PI;
+        if (deltaDeg > 180) deltaDeg -= 360;
+        if (deltaDeg < -180) deltaDeg += 360;
+        let rot = Math.round(initialRotation + deltaDeg);
+        if (latestEventData.shiftKey) {
+          rot = Math.round(rot / 15) * 15;
+        }
+        session.update({ [idx]: { rotation: rot } });
+      } else {
+        const resized = computeResizedRect720(initialRect720, gestureKind, rawDx720, rawDy720);
+        session.update({
+          [idx]: {
+            x: resized.left,
+            y: resized.top,
+            width: resized.width,
+            height: resized.height,
+          },
+        });
+      }
+    };
+
+    const cleanup = () => {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = 0;
+      }
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+
+    const onMove = (ev: PointerEvent) => {
+      if (!session.isActive()) return;
+      if (
+        !hasMoved &&
+        Math.abs(ev.clientX - startClientX) < 1 &&
+        Math.abs(ev.clientY - startClientY) < 1
+      ) {
+        return;
+      }
+      hasMoved = true;
+      latestEventData = {
+        clientX: ev.clientX,
+        clientY: ev.clientY,
+        altKey: ev.altKey,
+        shiftKey: ev.shiftKey,
+      };
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = 0;
+        computeAndApplyDraft();
+      });
+    };
+
+    const onCancel = () => {
+      cleanup();
+      session.cancel();
+    };
+
+    const onKeyDown = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') {
+        ev.preventDefault();
+        onCancel();
       }
     };
 
     const onUp = () => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      setSnapGuides([]);
-      setSpacingGuides([]);
-      setDraftOverlayRects({});
-      if (latestPatch && props.onOverlayCommit) {
-        const label =
-          gestureKind === 'move'
-            ? `Mover overlay ${ov.type}`
-            : gestureKind === 'rotate'
-              ? `Rotacionar overlay ${ov.type}`
-              : `Redimensionar overlay ${ov.type}`;
-        props.onOverlayCommit(idx, latestPatch, label);
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = 0;
+        if (hasMoved) computeAndApplyDraft();
       }
+      cleanup();
+      session.finish();
     };
 
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
+    window.addEventListener('keydown', onKeyDown);
   };
 
   // Marquee selection no fundo do canvas 2D
@@ -780,12 +1045,19 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
     setInlineEditIdx(null);
 
     const rect = viewportRef.current!.getBoundingClientRect();
-    const startX = (e.clientX - rect.left) / SCALE;
-    const startY = (e.clientY - rect.top) / SCALE;
+    const scaleX = rect.width > 0 ? rect.width / COMP_W : SCALE;
+    const scaleY = rect.height > 0 ? rect.height / COMP_H : SCALE;
+    const startX = (e.clientX - rect.left) / scaleX;
+    const startY = (e.clientY - rect.top) / scaleY;
+    let cancelled = false;
+    let rafId = 0;
+    let lastClientX = e.clientX;
+    let lastClientY = e.clientY;
 
-    const onMove = (ev: PointerEvent) => {
-      const curX = (ev.clientX - rect.left) / SCALE;
-      const curY = (ev.clientY - rect.top) / SCALE;
+    const updateMarquee = () => {
+      if (cancelled) return;
+      const curX = (lastClientX - rect.left) / scaleX;
+      const curY = (lastClientY - rect.top) / scaleY;
       const mRect: Rect = {
         left: Math.min(startX, curX),
         top: Math.min(startY, curY),
@@ -809,14 +1081,56 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
       }
     };
 
-    const onUp = () => {
+    const cleanup = () => {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = 0;
+      }
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+
+    const onMove = (ev: PointerEvent) => {
+      if (cancelled) return;
+      lastClientX = ev.clientX;
+      lastClientY = ev.clientY;
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = 0;
+        updateMarquee();
+      });
+    };
+
+    const onCancel = () => {
+      cancelled = true;
+      cleanup();
+      setMarqueeRect(null);
+      props.onSelectOverlays?.([]);
+    };
+
+    const onKeyDown = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') {
+        ev.preventDefault();
+        onCancel();
+      }
+    };
+
+    const onUp = () => {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = 0;
+        updateMarquee();
+      }
+      cleanup();
       setMarqueeRect(null);
     };
 
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
+    window.addEventListener('keydown', onKeyDown);
   };
 
   const commitInlineText = (idx: number) => {
@@ -888,10 +1202,10 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
           data-testid="safe-area-guide"
           style={{
             position: 'absolute',
-            top: safeArea.topPx * SCALE,
-            bottom: safeArea.bottomPx * SCALE,
-            left: safeArea.leftPx * SCALE,
-            right: safeArea.rightPx * SCALE,
+            top: `${(safeArea.topPx / COMP_H) * 100}%`,
+            bottom: `${(safeArea.bottomPx / COMP_H) * 100}%`,
+            left: `${(safeArea.leftPx / COMP_W) * 100}%`,
+            right: `${(safeArea.rightPx / COMP_W) * 100}%`,
             border: '1.5px dashed rgba(56, 189, 248, 0.65)',
             borderRadius: 6,
             pointerEvents: 'none',
@@ -925,7 +1239,7 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
             data-testid="snap-guide-line-x"
             style={{
               position: 'absolute',
-              left: g.position * SCALE,
+              left: `${(g.position / COMP_W) * 100}%`,
               top: 0,
               bottom: 0,
               width: 1.5,
@@ -960,7 +1274,7 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
             data-testid="snap-guide-line-y"
             style={{
               position: 'absolute',
-              top: g.position * SCALE,
+              top: `${(g.position / COMP_H) * 100}%`,
               left: 0,
               right: 0,
               height: 1.5,
@@ -998,8 +1312,8 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
           style={{
             position: 'absolute',
             left: '50%',
-            top: sg.position * SCALE,
-            height: sg.size * SCALE,
+            top: `${(sg.position / COMP_H) * 100}%`,
+            height: `${(sg.size / COMP_H) * 100}%`,
             borderLeft: '1.5px dotted #22c55e',
             zIndex: 60,
             pointerEvents: 'none',
@@ -1016,7 +1330,7 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
               marginLeft: 4,
             }}
           >
-            ↕ {sg.size}px
+            {sg.size}px
           </span>
         </div>
       ))}
@@ -1024,12 +1338,13 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
       {/* Marquee Selection Box */}
       {marqueeRect && (
         <div
+          data-testid="marquee-selection-box"
           style={{
             position: 'absolute',
-            left: marqueeRect.left * SCALE,
-            top: marqueeRect.top * SCALE,
-            width: marqueeRect.width * SCALE,
-            height: marqueeRect.height * SCALE,
+            left: `${(marqueeRect.left / COMP_W) * 100}%`,
+            top: `${(marqueeRect.top / COMP_H) * 100}%`,
+            width: `${(marqueeRect.width / COMP_W) * 100}%`,
+            height: `${(marqueeRect.height / COMP_H) * 100}%`,
             border: '1.5px solid #38bdf8',
             background: 'rgba(56, 189, 248, 0.16)',
             zIndex: 65,
@@ -1061,10 +1376,10 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
 
           const boxStyle: React.CSSProperties = {
             position: 'absolute',
-            left: rect720.left * SCALE,
-            top: rect720.top * SCALE,
-            width: rect720.width * SCALE,
-            minHeight: rect720.height * SCALE,
+            left: `${(rect720.left / COMP_W) * 100}%`,
+            top: `${(rect720.top / COMP_H) * 100}%`,
+            width: `${(rect720.width / COMP_W) * 100}%`,
+            minHeight: `${(rect720.height / COMP_H) * 100}%`,
             transform: `rotate(${rot}deg) scale(${sc})`,
             opacity: op,
             zIndex: zIdx,
@@ -1318,7 +1633,7 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
                 </div>
               ) : null}
 
-              {/* Handles estilo Figma quando selecionado (Resize + Rotate + Badge de Coordenadas) */}
+              {/* Handles estilo Figma quando selecionado (8 Handles de Resize + Rotate + Badge de Coordenadas) */}
               {props.interactive && props.canvasTool === '2d' && isSelected && (
                 <>
                   {/* Pill de coordenadas (x, y, w×h, rot) */}
@@ -1326,7 +1641,7 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
                     data-testid={`overlay-coords-pill-${idx}`}
                     style={{
                       position: 'absolute',
-                      top: -20,
+                      ...(rect720.top < 110 ? { bottom: -24 } : { top: -42 }),
                       left: 0,
                       background: '#38bdf8',
                       color: '#090d16',
@@ -1343,14 +1658,26 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
                     {rot ? ` · ${rot}°` : ''}
                   </div>
 
-                  {/* Handle de Rotação (topo central) */}
+                  {/* Conector + Handle de Rotação (topo central) */}
                   <div
-                    title="Arraste para rotacionar"
+                    style={{
+                      position: 'absolute',
+                      top: -16,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      width: 1.5,
+                      height: 11,
+                      background: '#f5c518',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                  <div
+                    title="Arraste para rotacionar (Shift: passos de 15°)"
                     data-testid={`overlay-rotate-handle-${idx}`}
                     onPointerDown={(e) => startOverlay2DGesture(idx, 'rotate', e)}
                     style={{
                       position: 'absolute',
-                      top: -16,
+                      top: -24,
                       left: '50%',
                       transform: 'translateX(-50%)',
                       width: 11,
@@ -1362,47 +1689,69 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
                     }}
                   />
 
-                  {/* Handle Resize SE (canto inferior direito) */}
-                  <div
-                    title="Arraste para redimensionar"
-                    data-testid={`overlay-resize-se-${idx}`}
-                    onPointerDown={(e) => startOverlay2DGesture(idx, 'resize-se', e)}
-                    style={{
-                      position: 'absolute',
-                      right: -5,
-                      bottom: -5,
-                      width: 10,
-                      height: 10,
-                      background: '#ffffff',
-                      border: '2px solid #38bdf8',
-                      borderRadius: 2,
-                      cursor: 'nwse-resize',
-                    }}
-                  />
-
-                  {/* Handle Resize E (lateral direita) */}
-                  <div
-                    onPointerDown={(e) => startOverlay2DGesture(idx, 'resize-e', e)}
-                    style={{
-                      position: 'absolute',
-                      right: -5,
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      width: 8,
-                      height: 14,
-                      background: '#ffffff',
-                      border: '2px solid #38bdf8',
-                      borderRadius: 2,
-                      cursor: 'ew-resize',
-                    }}
-                  />
+                  {/* 8 Handles de Redimensionamento (nw, n, ne, e, se, s, sw, w) */}
+                  {ALL_RESIZE_HANDLES.map((handle: ResizeHandleKind) => {
+                    const posMap: Record<ResizeHandleKind, React.CSSProperties> = {
+                      nw: { left: -5, top: -5, width: 9, height: 9, cursor: 'nwse-resize' },
+                      n: {
+                        left: '50%',
+                        top: -5,
+                        transform: 'translateX(-50%)',
+                        width: 14,
+                        height: 7,
+                        cursor: 'ns-resize',
+                      },
+                      ne: { right: -5, top: -5, width: 9, height: 9, cursor: 'nesw-resize' },
+                      e: {
+                        right: -5,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        width: 7,
+                        height: 14,
+                        cursor: 'ew-resize',
+                      },
+                      se: { right: -5, bottom: -5, width: 10, height: 10, cursor: 'nwse-resize' },
+                      s: {
+                        left: '50%',
+                        bottom: -5,
+                        transform: 'translateX(-50%)',
+                        width: 14,
+                        height: 7,
+                        cursor: 'ns-resize',
+                      },
+                      sw: { left: -5, bottom: -5, width: 9, height: 9, cursor: 'nesw-resize' },
+                      w: {
+                        left: -5,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        width: 7,
+                        height: 14,
+                        cursor: 'ew-resize',
+                      },
+                    };
+                    return (
+                      <div
+                        key={handle}
+                        title={`Redimensionar (${handle.toUpperCase()})`}
+                        data-testid={`overlay-resize-${handle}-${idx}`}
+                        onPointerDown={(e) => startOverlay2DGesture(idx, handle, e)}
+                        style={{
+                          position: 'absolute',
+                          background: '#ffffff',
+                          border: '2px solid #38bdf8',
+                          borderRadius: 2,
+                          ...posMap[handle],
+                        }}
+                      />
+                    );
+                  })}
                 </>
               )}
             </div>
           );
         })}
 
-        {/* Legenda Palavra a Palavra Ativa (Zona Base — arrastável verticalmente) */}
+        {/* Legenda Palavra a Palavra Ativa (Zona Base — arrastável verticalmente com commit único) */}
         {activeGroup && (
           <div
             data-testid="canvas-captions-group"
@@ -1410,19 +1759,68 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
             onPointerDown={(e) => {
               if (!props.interactive || !props.onCaptionPositionCommit) return;
               e.stopPropagation();
+              e.preventDefault();
               const startY = e.clientY;
               const startPct = props.captionStyle?.positionY || 83;
-              const onMove = (ev: PointerEvent) => {
-                const dyPct = ((ev.clientY - startY) / VIEW_H) * 100;
-                const nextPct = Math.max(15, Math.min(90, Math.round(startPct + dyPct)));
-                props.onCaptionPositionCommit?.(nextPct);
+              const vpRect = viewportRef.current?.getBoundingClientRect();
+              const vpHeight = vpRect && vpRect.height > 0 ? vpRect.height : VIEW_H;
+              let latestPct: number | null = null;
+              let cancelled = false;
+              let rafId = 0;
+
+              const computePct = (clientY: number) => {
+                const dyPct = ((clientY - startY) / vpHeight) * 100;
+                return Math.max(15, Math.min(90, Math.round(startPct + dyPct)));
               };
-              const onUp = () => {
+
+              const cleanup = () => {
+                if (rafId) {
+                  cancelAnimationFrame(rafId);
+                  rafId = 0;
+                }
                 window.removeEventListener('pointermove', onMove);
                 window.removeEventListener('pointerup', onUp);
+                window.removeEventListener('pointercancel', onCancel);
+                window.removeEventListener('keydown', onKeyDown);
               };
+
+              const onMove = (ev: PointerEvent) => {
+                if (cancelled) return;
+                const nextPct = computePct(ev.clientY);
+                latestPct = nextPct;
+                if (rafId) return;
+                rafId = requestAnimationFrame(() => {
+                  rafId = 0;
+                  if (!cancelled && latestPct !== null) setDraftCaptionPosY(latestPct);
+                });
+              };
+
+              const onCancel = () => {
+                cancelled = true;
+                cleanup();
+                setDraftCaptionPosY(null);
+              };
+
+              const onKeyDown = (ev: KeyboardEvent) => {
+                if (ev.key === 'Escape') {
+                  ev.preventDefault();
+                  onCancel();
+                }
+              };
+
+              const onUp = () => {
+                if (cancelled) return;
+                cleanup();
+                setDraftCaptionPosY(null);
+                if (latestPct !== null) {
+                  props.onCaptionPositionCommit?.(latestPct);
+                }
+              };
+
               window.addEventListener('pointermove', onMove);
               window.addEventListener('pointerup', onUp);
+              window.addEventListener('pointercancel', onCancel);
+              window.addEventListener('keydown', onKeyDown);
             }}
             style={{
               position: 'absolute',
@@ -1475,8 +1873,8 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
           data-testid="gizmo-3d-overlay"
           style={{
             position: 'absolute',
-            left: gizmoScreenPos.x,
-            top: gizmoScreenPos.y,
+            left: `${(gizmoScreenPos.x / VIEW_W) * 100}%`,
+            top: `${(gizmoScreenPos.y / VIEW_H) * 100}%`,
             transform: 'translate(-50%, -50%)',
             zIndex: 55,
             pointerEvents: 'auto',

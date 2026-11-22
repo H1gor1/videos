@@ -21,10 +21,49 @@ import type {
   TransitionType,
   ValidationResult,
 } from '@kinema/core';
-import { buildWordCaptionGroups } from '@kinema/overlays';
-import { ThreeViewport, type Scene3DObjectDescriptor } from '../components/ThreeViewport.tsx';
-import { AudioWaveform } from './AudioWaveform.tsx';
+import { buildWordCaptionGroups, computeOverlayLayoutZones } from '@kinema/overlays';
+import {
+  defaultOverlayRect720,
+  ThreeViewport,
+  type LiveObject3DTransform,
+  type Scene3DObjectDescriptor,
+} from '../components/ThreeViewport.tsx';
+import { AudioWaveform, decimatePeaks, extractAudioPeaksFromBuffer } from './AudioWaveform.tsx';
 import { useEditHistory } from './useEditHistory.ts';
+import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
+  ArrowDown,
+  ArrowGoBack,
+  ArrowGoForward,
+  ArrowUp,
+  ArrowsOutCardinal,
+  Box3D,
+  Camera,
+  CheckCircleIcon,
+  ClosedCaptioning,
+  Code,
+  Eye,
+  EyeSlash,
+  FastForward,
+  FilmSlate,
+  Lightbulb,
+  Magnet,
+  Microphone,
+  MusicNote,
+  Pause,
+  Play,
+  Rewind,
+  Scissors,
+  ShapeBox,
+  ShieldCheck,
+  SkipLeft,
+  SpeakerHigh,
+  SpeakerLow,
+  SpeakerSlash,
+  Trash,
+} from '../design-system/react/RemixIcons.tsx';
 
 const POSES: CharacterPose[] = [
   'idle',
@@ -51,12 +90,29 @@ const CAMERAS: CameraPreset[] = [
 const TRANSITIONS: TransitionType[] = ['cut', 'whip', 'fade', 'zoom'];
 const SFX_LIST: Scene['sfx'][] = ['none', 'whoosh', 'ding', 'alarm', 'lever', 'cheer', 'coin', 'pop'];
 
+function computeAudioSignature(p: Project): string {
+  const parts =
+    p.engine === 'scene3d'
+      ? p.scenes.map((s) => `${s.id}|${s.duration}|${s.narration}|${s.sfx}`)
+      : p.engine === 'kinetic'
+        ? p.kineticBlocks.map((b) => `${b.id}|${b.duration}|${b.narration}|${b.sfx}`)
+        : [p.freeform ? `${p.freeform.duration}|${p.freeform.narration}` : 'freeform'];
+  return JSON.stringify({
+    parts,
+    voice: p.voice,
+    musicTrack: p.renderSettings.musicTrack,
+    musicVolume: p.renderSettings.musicVolume,
+    sfxVolume: p.renderSettings.sfxVolume,
+  });
+}
+
 export interface NleEditorWorkspaceProps {
   project: Project;
   characters: Character[];
   templates: StageTemplateMetadata[];
   designKits: DesignKit[];
   libraryItems: LibraryItem[];
+  audioRevision?: number;
   onProjectUpdated: (project: Project) => void;
   onSynthesizeAudio: (projectId: string) => Promise<void>;
   onStartRender: (projectId: string) => Promise<void>;
@@ -70,6 +126,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
   templates,
   designKits,
   libraryItems,
+  audioRevision = 0,
   onProjectUpdated,
   onSynthesizeAudio,
   onStartRender,
@@ -78,11 +135,31 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
 }) => {
   // Estado de reprodução e timeline NLE
   const [playhead, setPlayhead] = useState<number>(0);
+  const playheadRef = useRef<number>(0);
+  playheadRef.current = playhead;
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [playbackRate, setPlaybackRate] = useState<number>(1);
   const [pxPerSec, setPxPerSec] = useState<number>(58);
   const [snapEnabled, setSnapEnabled] = useState<boolean>(true);
   const [showSafeAreas, setShowSafeAreas] = useState<boolean>(true);
+
+  // Estado de áudio master sincronizado (HTMLAudioElement como relógio mestre)
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [audioVersion, setAudioVersion] = useState<number>(0);
+  const [audioStatus, setAudioStatus] = useState<'loading' | 'ready' | 'missing'>('loading');
+  const [masterAudioUrl, setMasterAudioUrl] = useState<string | null>(null);
+  const [masterPeaks, setMasterPeaks] = useState<number[] | null>(null);
+  const [voicePeaks, setVoicePeaks] = useState<number[] | null>(null);
+  const [audioVolume, setAudioVolume] = useState<number>(1);
+  const [audioMuted, setAudioMuted] = useState<boolean>(false);
+  const [synthesizingAudio, setSynthesizingAudio] = useState<boolean>(false);
+  const synthesizedSigRef = useRef<{ projectId: string; sig: string } | null>(null);
+
+  // Estado ao vivo durante arraste/resize/rotate 2D, Gizmo 3D e Timeline (60fps, sem poluir histórico)
+  const [liveOverlayTransforms, setLiveOverlayTransforms] = useState<Record<number, Partial<OverlayItem>>>({});
+  const [liveObject3DTransform, setLiveObject3DTransform] = useState<LiveObject3DTransform | null>(null);
+  const [liveSceneDurations, setLiveSceneDurations] = useState<Record<number, number>>({});
+  const [liveOverlaySpans, setLiveOverlaySpans] = useState<Record<string, { startOffset: number; endOffset: number }>>({});
 
   // Ferramenta ativa no canvas central: '2d' (Figma overlays), '3d' (Gizmo TransformControls), 'camera' (Orbit 3D), 'code' (HTML/JSON avançado)
   const [canvasTool, setCanvasTool] = useState<'2d' | '3d' | 'camera' | 'code'>('2d');
@@ -104,6 +181,27 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
 
   const rulerRef = useRef<HTMLDivElement | null>(null);
+  const canvasContainerRef = useRef<HTMLDivElement | null>(null);
+  const [canvasFitScale, setCanvasFitScale] = useState<number>(0.68);
+
+  useEffect(() => {
+    const el = canvasContainerRef.current;
+    if (!el) return;
+    const updateScale = () => {
+      const rect = el.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+      const fit = Math.min((rect.height - 6) / 604, (rect.width - 12) / 340, 0.86);
+      setCanvasFitScale(Math.max(0.4, Number(fit.toFixed(3))));
+    };
+    updateScale();
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(updateScale);
+      ro.observe(el);
+      return () => ro.disconnect();
+    }
+    window.addEventListener('resize', updateScale);
+    return () => window.removeEventListener('resize', updateScale);
+  }, []);
 
   const activeDesignKit = useMemo(
     () =>
@@ -112,7 +210,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
     [designKits, project.designKitId]
   );
 
-  // Calcula intervalos de tempo globais de cada cena/bloco
+  // Calcula intervalos de tempo globais de cada cena/bloco (respeitando trim ao vivo)
   const sceneSpans = useMemo(() => {
     const spans: Array<{
       index: number;
@@ -128,7 +226,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
     if (project.engine === 'scene3d') {
       project.scenes.forEach((sc, idx) => {
         const start = Number(cursor.toFixed(2));
-        const dur = Number((sc.duration || 4.0).toFixed(2));
+        const dur = Number((liveSceneDurations[idx] ?? sc.duration ?? 4.0).toFixed(2));
         spans.push({
           index: idx,
           id: sc.id,
@@ -143,7 +241,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
     } else if (project.engine === 'kinetic') {
       project.kineticBlocks.forEach((kb, idx) => {
         const start = Number(cursor.toFixed(2));
-        const dur = Number((kb.duration || 3.6).toFixed(2));
+        const dur = Number((liveSceneDurations[idx] ?? kb.duration ?? 3.6).toFixed(2));
         spans.push({
           index: idx,
           id: kb.id,
@@ -167,9 +265,134 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
       cursor = project.freeform.duration || 12;
     }
     return { spans, totalDuration: Math.max(1, Number(cursor.toFixed(2))) };
-  }, [project]);
+  }, [project, liveSceneDurations]);
 
   const totalDuration = sceneSpans.totalDuration;
+  const currentAudioSig = useMemo(() => computeAudioSignature(project), [project]);
+
+  // Recarrega o mix master + picos reais via Web Audio API (decodeAudioData) quando projeto/áudio muda
+  useEffect(() => {
+    if (audioRevision > 0) {
+      synthesizedSigRef.current = { projectId: project.id, sig: currentAudioSig };
+      setAudioVersion((v) => v + 1);
+    }
+  }, [audioRevision]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const rev = audioVersion;
+    const masterUrl = `/project-files/${project.id}/audio/mixed-master.wav?v=${rev}`;
+    const voiceUrl = `/project-files/${project.id}/audio/mixed-master.voice.wav?v=${rev}`;
+
+    setAudioStatus('loading');
+
+    const loadAudioAndPeaks = async () => {
+      try {
+        const res = await fetch(masterUrl, { cache: 'no-store' });
+        if (!res.ok) {
+          if (!cancelled) {
+            setAudioStatus('missing');
+            setMasterAudioUrl(null);
+            setMasterPeaks(null);
+            setVoicePeaks(null);
+          }
+          return;
+        }
+        const masterBuf = await res.arrayBuffer();
+        if (cancelled) return;
+
+        setMasterAudioUrl(masterUrl);
+        setAudioStatus('ready');
+
+        if (!synthesizedSigRef.current || synthesizedSigRef.current.projectId !== project.id) {
+          synthesizedSigRef.current = { projectId: project.id, sig: computeAudioSignature(project) };
+        }
+
+        const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        if (!AudioCtx) return;
+
+        const ctx = new AudioCtx();
+        try {
+          const decodedMaster = await ctx.decodeAudioData(masterBuf.slice(0));
+          if (!cancelled) {
+            setMasterPeaks(extractAudioPeaksFromBuffer(decodedMaster, 420));
+          }
+
+          try {
+            const vRes = await fetch(voiceUrl, { cache: 'no-store' });
+            if (vRes.ok && !cancelled) {
+              const voiceBuf = await vRes.arrayBuffer();
+              const decodedVoice = await ctx.decodeAudioData(voiceBuf);
+              if (!cancelled) {
+                setVoicePeaks(extractAudioPeaksFromBuffer(decodedVoice, 420));
+              }
+            } else if (!cancelled) {
+              setVoicePeaks(null);
+            }
+          } catch {
+            if (!cancelled) setVoicePeaks(null);
+          }
+        } catch {
+          // Áudio toca normalmente mesmo se decodeAudioData não estiver disponível
+        } finally {
+          void ctx.close().catch(() => {});
+        }
+      } catch {
+        if (!cancelled) {
+          setAudioStatus('missing');
+          setMasterAudioUrl(null);
+        }
+      }
+    };
+
+    void loadAudioAndPeaks();
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id, audioVersion]);
+
+  const isAudioOutdated =
+    audioStatus === 'ready' &&
+    synthesizedSigRef.current?.projectId === project.id &&
+    currentAudioSig !== synthesizedSigRef.current.sig;
+
+  // Sincroniza volume/mute no HTMLAudioElement mestre
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.muted = audioMuted;
+    audio.volume = Math.max(0, Math.min(1, audioVolume));
+  }, [audioVolume, audioMuted, masterAudioUrl]);
+
+  // Seek determinístico sincronizado entre playhead visual e HTMLAudioElement mestre
+  const seekTo = useCallback(
+    (timeSec: number) => {
+      const clamped = Math.max(0, Math.min(totalDuration, Number(timeSec.toFixed(3))));
+      setPlayhead(clamped);
+      const audio = audioRef.current;
+      if (audio && audioStatus === 'ready') {
+        try {
+          const dur = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : totalDuration;
+          audio.currentTime = Math.max(0, Math.min(dur, clamped));
+        } catch {
+          // Aguarda metadata
+        }
+      }
+    },
+    [totalDuration, audioStatus]
+  );
+
+  const handleTriggerSynthesizeAudio = useCallback(async () => {
+    if (synthesizingAudio) return;
+    setSynthesizingAudio(true);
+    try {
+      await onSynthesizeAudio(project.id);
+      synthesizedSigRef.current = { projectId: project.id, sig: computeAudioSignature(project) };
+      setAudioVersion((v) => v + 1);
+    } finally {
+      setSynthesizingAudio(false);
+    }
+  }, [synthesizingAudio, onSynthesizeAudio, project]);
 
   // Mantém activeSceneIdx sincronizado quando o playhead cruza fronteiras de cena durante playback
   useEffect(() => {
@@ -270,6 +493,28 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
     [activeScene, commitProjectMutation]
   );
 
+  const handleOverlaysPatchBatchCommit = useCallback(
+    async (
+      patches: Array<{ index: number; patch: Partial<OverlayItem> }>,
+      label = 'Mover overlays 2D'
+    ) => {
+      if (!activeScene || patches.length === 0) return;
+      await commitProjectMutation((draft) => {
+        const sc = draft.scenes.find((s) => s.id === activeScene.id);
+        if (!sc) return;
+        for (const item of patches) {
+          if (sc.overlays[item.index]) {
+            sc.overlays[item.index] = {
+              ...sc.overlays[item.index],
+              ...item.patch,
+            } as OverlayItem;
+          }
+        }
+      }, label);
+    },
+    [activeScene, commitProjectMutation]
+  );
+
   const handleObject3DCommit = useCallback(
     async (objectId: string, override: SceneObjectOverride, label = 'Transformar objeto 3D') => {
       if (!activeScene) return;
@@ -345,25 +590,93 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
     handleObject3DCommit,
   ]);
 
-  // Loop de reprodução da timeline NLE (suporta J/K/L shuttle 1x, 1.5x, 2x, -1.5x)
+  // Loop de reprodução da timeline NLE com HTMLAudioElement como RELÓGIO MESTRE (suporta J/K/L shuttle)
   useEffect(() => {
-    if (!isPlaying) return;
+    const audio = audioRef.current;
+
+    if (!isPlaying) {
+      if (audio && !audio.paused) {
+        audio.pause();
+        setPlayhead(Number(audio.currentTime.toFixed(3)));
+      }
+      return;
+    }
+
     let raf = 0;
+    let cancelled = false;
+    const useAudioMaster = Boolean(audio && audioStatus === 'ready' && masterAudioUrl && playbackRate > 0);
+
+    if (useAudioMaster && audio) {
+      try {
+        audio.playbackRate = playbackRate;
+        const audioDur =
+          Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : totalDuration;
+        if (Math.abs(audio.currentTime - playheadRef.current) > 0.04) {
+          audio.currentTime = Math.max(0, Math.min(Math.max(0, audioDur - 0.01), playheadRef.current));
+        }
+      } catch {
+        // Ignora caso metadata ainda esteja carregando
+      }
+
+      void audio.play().catch(() => {
+        // Autoplay bloqueado sem gesto: mantém rAF se necessário
+      });
+
+      const stepFromAudio = () => {
+        if (cancelled) return;
+        const t = audio.currentTime;
+        if (audio.ended || t >= totalDuration) {
+          audio.currentTime = 0;
+          setPlayhead(0);
+          void audio.play().catch(() => {});
+        } else {
+          setPlayhead(Number(t.toFixed(3)));
+        }
+        raf = requestAnimationFrame(stepFromAudio);
+      };
+      raf = requestAnimationFrame(stepFromAudio);
+
+      return () => {
+        cancelled = true;
+        cancelAnimationFrame(raf);
+        if (!audio.paused) {
+          audio.pause();
+          setPlayhead(Number(audio.currentTime.toFixed(3)));
+        }
+      };
+    }
+
+    // Fallback (sem áudio sintetizado ainda ou shuttle reverso J < 0)
+    if (audio && !audio.paused) {
+      audio.pause();
+    }
     let last = performance.now();
-    const step = (now: number) => {
+    const stepTimer = (now: number) => {
+      if (cancelled) return;
       const dt = ((now - last) / 1000) * playbackRate;
       last = now;
       setPlayhead((prev) => {
-        const next = prev + dt;
-        if (next >= totalDuration) return 0;
-        if (next < 0) return totalDuration;
-        return Number(next.toFixed(3));
+        let next = prev + dt;
+        if (next >= totalDuration) next = 0;
+        if (next < 0) next = totalDuration;
+        const clamped = Number(next.toFixed(3));
+        if (audio && audioStatus === 'ready') {
+          try {
+            audio.currentTime = clamped;
+          } catch {
+            // noop
+          }
+        }
+        return clamped;
       });
-      raf = requestAnimationFrame(step);
+      raf = requestAnimationFrame(stepTimer);
     };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [isPlaying, playbackRate, totalDuration]);
+    raf = requestAnimationFrame(stepTimer);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+    };
+  }, [isPlaying, playbackRate, totalDuration, audioStatus, masterAudioUrl]);
 
   // Atalhos globais de teclado do Editor NLE (Espaço, J/K/L, S, Delete, Ctrl+Z, Ctrl+Shift+Z, Setas)
   useEffect(() => {
@@ -450,7 +763,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
     handleOverlayCommit,
   ]);
 
-  // Scrubbing na régua de tempo
+  // Scrubbing na régua de tempo (atualiza playhead + audio.currentTime)
   const handleRulerPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const bar = rulerRef.current;
     if (!bar) return;
@@ -459,7 +772,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
       const x = Math.max(0, clientX - rect.left);
       const rawSec = x / pxPerSec;
       const snapped = snapEnabled ? Math.round(rawSec * 10) / 10 : rawSec;
-      setPlayhead(Math.max(0, Math.min(totalDuration, Number(snapped.toFixed(2)))));
+      seekTo(snapped);
     };
     updateFromClientX(e.clientX);
     const onMove = (ev: PointerEvent) => updateFromClientX(ev.clientX);
@@ -471,7 +784,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
     window.addEventListener('pointerup', onUp);
   };
 
-  // Aparar (Trim) a duração de uma cena diretamente na trilha V1
+  // Aparar (Trim) a duração de uma cena diretamente na trilha V1 (com feedback visual 60fps + Esc cancel + commit único)
   const startSceneTrimDrag = (sceneIdx: number, e: React.PointerEvent) => {
     e.stopPropagation();
     e.preventDefault();
@@ -480,16 +793,59 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
     const startX = e.clientX;
     const initialDur = span.duration;
     let latestDur = initialDur;
+    let cancelled = false;
+    let rafId = 0;
+
+    const cleanup = () => {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = 0;
+      }
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
+      window.removeEventListener('keydown', onKeyDown);
+    };
 
     const onMove = (ev: PointerEvent) => {
+      if (cancelled) return;
       const dt = (ev.clientX - startX) / pxPerSec;
       const raw = Math.max(1.5, Math.min(25, initialDur + dt));
       latestDur = snapEnabled ? Math.round(raw * 4) / 4 : Number(raw.toFixed(2));
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = 0;
+        if (!cancelled) {
+          setLiveSceneDurations((prev) => ({ ...prev, [sceneIdx]: latestDur }));
+        }
+      });
+    };
+
+    const onCancel = () => {
+      cancelled = true;
+      cleanup();
+      setLiveSceneDurations((prev) => {
+        const copy = { ...prev };
+        delete copy[sceneIdx];
+        return copy;
+      });
+    };
+
+    const onKeyDown = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') {
+        ev.preventDefault();
+        onCancel();
+      }
     };
 
     const onUp = () => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
+      if (cancelled) return;
+      cleanup();
+      setLiveSceneDurations((prev) => {
+        const copy = { ...prev };
+        delete copy[sceneIdx];
+        return copy;
+      });
       if (Math.abs(latestDur - initialDur) >= 0.1) {
         void commitProjectMutation((draft) => {
           if (draft.engine === 'scene3d' && draft.scenes[sceneIdx]) {
@@ -503,9 +859,11 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
 
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
+    window.addEventListener('keydown', onKeyDown);
   };
 
-  // Mover / Aparar clipe de Overlay 2D na trilha V2
+  // Mover / Aparar clipe de Overlay 2D na trilha V2 (com feedback visual 60fps + Esc cancel + commit único)
   const startOverlayTimelineDrag = (
     sceneIdx: number,
     overlayIdx: number,
@@ -518,14 +876,32 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
     const ov = sc?.overlays[overlayIdx];
     if (!sc || !ov) return;
 
+    const spanKey = `${sceneIdx}-${overlayIdx}`;
     const startX = e.clientX;
     const initStart = ov.startOffset ?? 0;
     const initEnd = ov.endOffset ?? sc.duration;
     const clipLen = Math.max(0.4, initEnd - initStart);
     let nextStart = initStart;
     let nextEnd = initEnd;
+    let moved = false;
+    let cancelled = false;
+    let rafId = 0;
+
+    const cleanup = () => {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = 0;
+      }
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
+      window.removeEventListener('keydown', onKeyDown);
+    };
 
     const onMove = (ev: PointerEvent) => {
+      if (cancelled) return;
+      if (Math.abs(ev.clientX - startX) < 2) return;
+      moved = true;
       const dt = (ev.clientX - startX) / pxPerSec;
       if (mode === 'move') {
         const s = Math.max(0, Math.min(sc.duration - clipLen, initStart + dt));
@@ -535,11 +911,44 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
         const end = Math.max(initStart + 0.5, Math.min(sc.duration, initEnd + dt));
         nextEnd = snapEnabled ? Math.round(end * 10) / 10 : Number(end.toFixed(2));
       }
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = 0;
+        if (!cancelled) {
+          setLiveOverlaySpans((prev) => ({
+            ...prev,
+            [spanKey]: { startOffset: nextStart, endOffset: nextEnd },
+          }));
+        }
+      });
+    };
+
+    const onCancel = () => {
+      cancelled = true;
+      cleanup();
+      setLiveOverlaySpans((prev) => {
+        const copy = { ...prev };
+        delete copy[spanKey];
+        return copy;
+      });
+    };
+
+    const onKeyDown = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') {
+        ev.preventDefault();
+        onCancel();
+      }
     };
 
     const onUp = () => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
+      if (cancelled) return;
+      cleanup();
+      setLiveOverlaySpans((prev) => {
+        const copy = { ...prev };
+        delete copy[spanKey];
+        return copy;
+      });
+      if (!moved) return;
       void commitProjectMutation((draft) => {
         const targetOv = draft.scenes[sceneIdx]?.overlays[overlayIdx];
         if (!targetOv) return;
@@ -550,6 +959,8 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
 
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
+    window.addEventListener('keydown', onKeyDown);
   };
 
   // Adicionar novo overlay rápido à cena ativa
@@ -663,13 +1074,37 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
     );
   };
 
-  const selectedOverlay: OverlayItem | null =
-    activeScene && selectedOverlayIndices.length > 0
-      ? activeScene.overlays[selectedOverlayIndices[0]] || null
+  const selectedOverlayIdx = selectedOverlayIndices.length > 0 ? selectedOverlayIndices[0] : -1;
+  const baseSelectedOverlay: OverlayItem | null =
+    activeScene && selectedOverlayIdx >= 0
+      ? activeScene.overlays[selectedOverlayIdx] || null
       : null;
+  const selectedOverlay: OverlayItem | null = baseSelectedOverlay
+    ? ({
+        ...baseSelectedOverlay,
+        ...(liveOverlayTransforms[selectedOverlayIdx] || {}),
+      } as OverlayItem)
+    : null;
 
-  const selectedObject3D: Scene3DObjectDescriptor | null =
+  const selectedOverlayRect = useMemo(() => {
+    if (!selectedOverlay || selectedOverlayIdx < 0) return null;
+    const zones = computeOverlayLayoutZones(project.captionStyle, 720, 1280);
+    return defaultOverlayRect720(selectedOverlay, selectedOverlayIdx, zones);
+  }, [selectedOverlay, selectedOverlayIdx, project.captionStyle]);
+
+  const baseSelectedObject3D: Scene3DObjectDescriptor | null =
     objects3DCatalog.find((o) => o.id === selectedObject3DId) || objects3DCatalog[0] || null;
+  const selectedObject3D: Scene3DObjectDescriptor | null =
+    baseSelectedObject3D &&
+    liveObject3DTransform &&
+    liveObject3DTransform.objectId === baseSelectedObject3D.id
+      ? {
+          ...baseSelectedObject3D,
+          position: liveObject3DTransform.position,
+          rotation: liveObject3DTransform.rotation,
+          scale: liveObject3DTransform.scale,
+        }
+      : baseSelectedObject3D;
 
   const timelineWidthPx = Math.max(760, Math.ceil(totalDuration * pxPerSec) + 120);
 
@@ -747,7 +1182,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
             title="Desfazer (Ctrl+Z)"
             style={{ padding: '5px 10px', fontSize: 12 }}
           >
-            ↶ Desfazer
+            <ArrowGoBack size={14} /> Desfazer
           </button>
           <button
             type="button"
@@ -758,7 +1193,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
             title="Refazer (Ctrl+Shift+Z)"
             style={{ padding: '5px 10px', fontSize: 12 }}
           >
-            ↷ Refazer
+            <ArrowGoForward size={14} /> Refazer
           </button>
 
           <div style={{ width: 1, height: 22, background: 'rgba(255,255,255,0.12)', margin: '0 4px' }} />
@@ -780,6 +1215,9 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
               data-testid="tool-2d-btn"
               onClick={() => setCanvasTool('2d')}
               style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
                 padding: '4px 10px',
                 fontSize: 12,
                 fontWeight: 700,
@@ -790,7 +1228,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                 color: canvasTool === '2d' ? '#090d16' : '#e2e8f0',
               }}
             >
-              ✥ 2D / Overlays (Figma)
+              <ArrowsOutCardinal size={14} /> 2D / Overlays (Figma)
             </button>
             {project.engine === 'scene3d' && (
               <>
@@ -799,6 +1237,9 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                   data-testid="tool-3d-btn"
                   onClick={() => setCanvasTool('3d')}
                   style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
                     padding: '4px 10px',
                     fontSize: 12,
                     fontWeight: 700,
@@ -809,13 +1250,16 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                     color: canvasTool === '3d' ? '#090d16' : '#e2e8f0',
                   }}
                 >
-                  立方 3D Gizmo
+                  <Box3D size={14} /> 3D Gizmo
                 </button>
                 <button
                   type="button"
                   data-testid="tool-camera-btn"
                   onClick={() => setCanvasTool('camera')}
                   style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
                     padding: '4px 10px',
                     fontSize: 12,
                     fontWeight: 700,
@@ -826,7 +1270,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                     color: canvasTool === 'camera' ? '#ffffff' : '#e2e8f0',
                   }}
                 >
-                  🎥 Câmera 3D
+                  <Camera size={14} /> Câmera 3D
                 </button>
               </>
             )}
@@ -835,6 +1279,9 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
               data-testid="tool-code-btn"
               onClick={() => setCanvasTool('code')}
               style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
                 padding: '4px 10px',
                 fontSize: 12,
                 fontWeight: 700,
@@ -845,7 +1292,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                 color: canvasTool === 'code' ? '#090d16' : '#e2e8f0',
               }}
             >
-              {'</>'} Código HTML/JSON
+              <Code size={14} /> Código HTML/JSON
             </button>
           </div>
 
@@ -898,7 +1345,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
             >
               {designKits.map((dk) => (
                 <option key={dk.id} value={dk.id}>
-                  🎨 {dk.name}
+                  {dk.name}
                 </option>
               ))}
             </select>
@@ -925,7 +1372,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
               color: showSafeAreas ? '#38bdf8' : undefined,
             }}
           >
-            ⊞ Safe Area 9:16
+            <ShapeBox size={14} /> Safe Area 9:16
           </button>
 
           <button
@@ -940,7 +1387,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
               color: snapEnabled ? '#ec4899' : undefined,
             }}
           >
-            🧲 Snap {snapEnabled ? 'ON' : 'OFF'}
+            <Magnet size={14} /> Snap {snapEnabled ? 'ON' : 'OFF'}
           </button>
         </div>
 
@@ -953,15 +1400,17 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
             onClick={() => void handleValidateProject()}
             style={{ padding: '5px 10px', fontSize: 12 }}
           >
-            ✓ Validar Kit
+            <ShieldCheck size={14} /> Validar Kit
           </button>
           <button
             type="button"
             className="om-button"
-            onClick={() => void onSynthesizeAudio(project.id)}
+            data-testid="nle-synthesize-btn"
+            disabled={synthesizingAudio}
+            onClick={() => void handleTriggerSynthesizeAudio()}
             style={{ padding: '5px 10px', fontSize: 12 }}
           >
-            🎙 TTS + Mix
+            <Microphone size={14} /> {synthesizingAudio ? 'Gerando...' : 'TTS + Mix'}
           </button>
           <button
             type="button"
@@ -970,7 +1419,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
             onClick={() => void onStartRender(project.id)}
             style={{ padding: '5px 12px', fontSize: 12 }}
           >
-            🎬 Renderizar MP4
+            <FilmSlate size={14} /> Renderizar MP4
           </button>
         </div>
       </div>
@@ -1220,7 +1669,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                           onClick={() => void handleUpdateActiveScene({ sfx }, `Trocar SFX para ${sfx}`)}
                           style={{ fontSize: 11, padding: '5px 8px' }}
                         >
-                          🔊 {sfx}
+                          <SpeakerHigh size={13} /> {sfx}
                         </button>
                       ))}
                     </div>
@@ -1284,6 +1733,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
 
           {/* Superfície Principal: Viewport 9:16 ou Painel de Código */}
           <div
+            ref={canvasContainerRef}
             style={{
               flex: 1,
               display: 'flex',
@@ -1366,8 +1816,23 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                 />
               </div>
             ) : project.engine === 'scene3d' && activeScene ? (
-              <div style={{ transform: 'scale(0.84)', transformOrigin: 'center center' }}>
-                <ThreeViewport
+              <div
+                style={{
+                  width: Math.round(340 * canvasFitScale),
+                  height: Math.round(604 * canvasFitScale),
+                  position: 'relative',
+                  flexShrink: 0,
+                }}
+              >
+                <div
+                  style={{
+                    width: 340,
+                    height: 604,
+                    transform: `scale(${canvasFitScale})`,
+                    transformOrigin: 'top left',
+                  }}
+                >
+                  <ThreeViewport
                   mode="scene"
                   scene={activeScene}
                   character={activeCharacter}
@@ -1383,12 +1848,17 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                   selectedOverlayIndices={selectedOverlayIndices}
                   onSelectOverlays={setSelectedOverlayIndices}
                   onOverlayCommit={(idx, patch, label) => void handleOverlayCommit(idx, patch, label)}
+                  onOverlaysPatchBatchCommit={(patches, label) =>
+                    void handleOverlaysPatchBatchCommit(patches, label)
+                  }
+                  onLiveOverlayTransformsChange={setLiveOverlayTransforms}
                   selectedObject3DId={selectedObject3DId}
                   onSelectObject3D={(id) => {
                     setSelectedObject3DId(id);
                     setRightTab('inspector');
                   }}
                   onObject3DCommit={(id, ov, label) => void handleObject3DCommit(id, ov, label)}
+                  onLiveObject3DTransform={setLiveObject3DTransform}
                   onCatalogObjects3D={setObjects3DCatalog}
                   onCameraKeyframeCommit={(kf, label) => void handleCameraKeyframeCommit(kf, label)}
                   onCaptionPositionCommit={(posY) =>
@@ -1397,80 +1867,108 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                     }, `Mover legendas para Y=${posY}%`)
                   }
                 />
+                </div>
               </div>
             ) : project.engine === 'kinetic' && activeKineticBlock ? (
               /* Preview Visual 2D Interativo para o Engine Kinetic */
               <div
-                className="vs-phone-viewport"
                 style={{
-                  transform: 'scale(0.84)',
-                  transformOrigin: 'center center',
-                  background: activeDesignKit?.palette.background || '#090d16',
-                  color: activeDesignKit?.palette.text || '#ffffff',
-                  padding: 28,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'center',
-                  gap: 12,
+                  width: Math.round(340 * canvasFitScale),
+                  height: Math.round(604 * canvasFitScale),
+                  position: 'relative',
+                  flexShrink: 0,
                 }}
               >
-                {activeKineticBlock.rankNumber !== undefined && (
-                  <div
-                    style={{
-                      alignSelf: 'flex-start',
-                      background: activeKineticBlock.accentColor || activeDesignKit?.palette.primary || '#f5c518',
-                      color: activeDesignKit?.palette.textOnPrimary || '#090d16',
-                      fontFamily: activeDesignKit?.typography.headingFont || 'Anton',
-                      fontSize: 28,
-                      fontWeight: 900,
-                      padding: '4px 14px',
-                      borderRadius: activeDesignKit?.borderRadius || 8,
-                    }}
-                  >
-                    #{activeKineticBlock.rankNumber}
-                  </div>
-                )}
-                <h2
+                <div
+                  className="vs-phone-viewport"
                   style={{
-                    fontFamily: activeDesignKit?.typography.headingFont || 'Anton',
-                    fontSize: 36,
-                    lineHeight: 1.05,
-                    color: activeDesignKit?.palette.text || '#fff',
+                    transform: `scale(${canvasFitScale})`,
+                    transformOrigin: 'top left',
+                    background: activeDesignKit?.palette.background || '#090d16',
+                    color: activeDesignKit?.palette.text || '#ffffff',
+                    padding: 28,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    gap: 12,
                   }}
                 >
-                  {activeKineticBlock.headline}
-                </h2>
-                {activeKineticBlock.subheadline && (
-                  <p style={{ fontSize: 13, fontWeight: 700, opacity: 0.85 }}>
-                    {activeKineticBlock.subheadline}
-                  </p>
-                )}
+                  {activeKineticBlock.rankNumber !== undefined && (
+                    <div
+                      style={{
+                        alignSelf: 'flex-start',
+                        background: activeKineticBlock.accentColor || activeDesignKit?.palette.primary || '#f5c518',
+                        color: activeDesignKit?.palette.textOnPrimary || '#090d16',
+                        fontFamily: activeDesignKit?.typography.headingFont || 'Anton',
+                        fontSize: 28,
+                        fontWeight: 900,
+                        padding: '4px 14px',
+                        borderRadius: activeDesignKit?.borderRadius || 8,
+                      }}
+                    >
+                      #{activeKineticBlock.rankNumber}
+                    </div>
+                  )}
+                  <h2
+                    style={{
+                      fontFamily: activeDesignKit?.typography.headingFont || 'Anton',
+                      fontSize: 36,
+                      lineHeight: 1.05,
+                      color: activeDesignKit?.palette.text || '#fff',
+                    }}
+                  >
+                    {activeKineticBlock.headline}
+                  </h2>
+                  {activeKineticBlock.subheadline && (
+                    <p style={{ fontSize: 13, fontWeight: 700, opacity: 0.85 }}>
+                      {activeKineticBlock.subheadline}
+                    </p>
+                  )}
+                </div>
               </div>
             ) : (
               /* Preview Freeform */
               <div
-                className="vs-phone-viewport"
                 style={{
-                  transform: 'scale(0.84)',
-                  transformOrigin: 'center center',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: 20,
-                  textAlign: 'center',
+                  width: Math.round(340 * canvasFitScale),
+                  height: Math.round(604 * canvasFitScale),
+                  position: 'relative',
+                  flexShrink: 0,
                 }}
               >
-                <div>
-                  <div style={{ fontSize: 15, fontWeight: 900, color: '#f5c518' }}>{project.title}</div>
-                  <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 6 }}>
-                    Use a aba <code>{'</>'} Código HTML/JSON</code> acima para editar o HTML HyperFrames ao vivo.
-                  </p>
+                <div
+                  className="vs-phone-viewport"
+                  style={{
+                    transform: `scale(${canvasFitScale})`,
+                    transformOrigin: 'top left',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 20,
+                    textAlign: 'center',
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 900, color: '#f5c518' }}>{project.title}</div>
+                    <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 6 }}>
+                      Use a aba <code>{'</>'} Código HTML/JSON</code> acima para editar o HTML HyperFrames ao vivo.
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Barra de Transporte do Player (Play/Pause, Shuttle J/K/L, Step, Timecode, Split S) */}
+          {/* Elemento HTMLAudioElement único como relógio mestre do player */}
+          <audio
+            ref={audioRef}
+            data-testid="nle-master-audio"
+            src={masterAudioUrl || undefined}
+            preload="auto"
+            style={{ display: 'none' }}
+          />
+
+          {/* Barra de Transporte do Player (Play/Pause, Shuttle J/K/L, Volume/Mute, Timecode, Áudio Status, Split S) */}
           <div
             style={{
               width: '100%',
@@ -1481,7 +1979,8 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
               border: '1px solid rgba(255,255,255,0.1)',
               borderRadius: 10,
               padding: '6px 12px',
-              gap: 10,
+              gap: 8,
+              flexWrap: 'wrap',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -1491,11 +1990,11 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                 title="Início (0s)"
                 onClick={() => {
                   setIsPlaying(false);
-                  setPlayhead(0);
+                  seekTo(0);
                 }}
                 style={{ padding: '4px 8px', fontSize: 12 }}
               >
-                ⏮
+                <SkipLeft size={14} />
               </button>
               <button
                 type="button"
@@ -1507,7 +2006,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                 }}
                 style={{ padding: '4px 8px', fontSize: 11 }}
               >
-                ⏪ J
+                <Rewind size={14} /> J
               </button>
               <button
                 type="button"
@@ -1521,7 +2020,15 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                 }}
                 style={{ padding: '4px 14px', fontSize: 12, fontWeight: 800 }}
               >
-                {isPlaying ? '⏸ Pausar (K)' : '▶ Play (Espaço)'}
+                {isPlaying ? (
+                  <>
+                    <Pause size={14} /> Pausar (K)
+                  </>
+                ) : (
+                  <>
+                    <Play size={14} /> Play (Espaço)
+                  </>
+                )}
               </button>
               <button
                 type="button"
@@ -1533,25 +2040,103 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                 }}
                 style={{ padding: '4px 8px', fontSize: 11 }}
               >
-                L ⏩
+                L <FastForward size={14} />
               </button>
             </div>
 
-            <div
-              data-testid="nle-timecode-display"
-              style={{
-                fontFamily: '"IBM Plex Mono", monospace',
-                fontSize: 12,
-                fontWeight: 700,
-                color: '#f5c518',
-                background: 'rgba(9, 13, 22, 0.9)',
-                padding: '4px 10px',
-                borderRadius: 6,
-                border: '1px solid rgba(245, 197, 24, 0.3)',
-              }}
-            >
-              {playhead.toFixed(2)}s / {totalDuration.toFixed(2)}s · {project.renderSettings.fps} FPS
-              {playbackRate !== 1 ? ` (${playbackRate}x)` : ''}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div
+                data-testid="nle-timecode-display"
+                data-playhead={playhead.toFixed(4)}
+                style={{
+                  fontFamily: '"IBM Plex Mono", monospace',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: '#f5c518',
+                  background: 'rgba(9, 13, 22, 0.9)',
+                  padding: '4px 10px',
+                  borderRadius: 6,
+                  border: '1px solid rgba(245, 197, 24, 0.3)',
+                }}
+              >
+                {playhead.toFixed(2)}s / {totalDuration.toFixed(2)}s · {project.renderSettings.fps} FPS
+                {playbackRate !== 1 ? ` (${playbackRate}x)` : ''}
+              </div>
+
+              {/* Controle de Volume / Mute */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <button
+                  type="button"
+                  className="om-button"
+                  data-testid="nle-mute-btn"
+                  title={audioMuted ? 'Ativar som' : 'Silenciar'}
+                  onClick={() => setAudioMuted((m) => !m)}
+                  style={{ padding: '4px 7px', fontSize: 11 }}
+                >
+                  {audioMuted || audioVolume === 0 ? (
+                    <SpeakerSlash size={14} />
+                  ) : audioVolume < 0.5 ? (
+                    <SpeakerLow size={14} />
+                  ) : (
+                    <SpeakerHigh size={14} />
+                  )}
+                </button>
+                <input
+                  type="range"
+                  aria-label="Volume do Player"
+                  data-testid="nle-volume-slider"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={audioMuted ? 0 : audioVolume}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    setAudioVolume(v);
+                    if (v > 0 && audioMuted) setAudioMuted(false);
+                  }}
+                  style={{ width: 64 }}
+                />
+              </div>
+
+              {/* Indicador de Áudio Ausente ou Desatualizado */}
+              {audioStatus === 'missing' && (
+                <button
+                  type="button"
+                  className="om-button"
+                  data-testid="nle-no-audio-warning"
+                  disabled={synthesizingAudio}
+                  onClick={() => void handleTriggerSynthesizeAudio()}
+                  style={{
+                    padding: '4px 9px',
+                    fontSize: 11,
+                    borderColor: '#f59e0b',
+                    color: '#fde047',
+                    background: 'rgba(245, 158, 11, 0.14)',
+                  }}
+                >
+                  <Microphone size={13} />{' '}
+                  {synthesizingAudio ? 'Gerando TTS + Mix...' : 'Sem áudio: clique em TTS + Mix'}
+                </button>
+              )}
+              {audioStatus === 'ready' && isAudioOutdated && (
+                <button
+                  type="button"
+                  className="om-button"
+                  data-testid="nle-outdated-audio-warning"
+                  disabled={synthesizingAudio}
+                  onClick={() => void handleTriggerSynthesizeAudio()}
+                  style={{
+                    padding: '4px 9px',
+                    fontSize: 11,
+                    borderColor: '#f59e0b',
+                    color: '#fde047',
+                    background: 'rgba(245, 158, 11, 0.14)',
+                  }}
+                >
+                  <Microphone size={13} />{' '}
+                  {synthesizingAudio ? 'Atualizando...' : 'Áudio desatualizado · Regenerar Mix'}
+                </button>
+              )}
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1563,7 +2148,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                 onClick={() => void handleSplitAtPlayhead()}
                 style={{ padding: '4px 10px', fontSize: 11 }}
               >
-                ✂ Dividir (S)
+                <Scissors size={13} /> Dividir (S)
               </button>
               <button
                 type="button"
@@ -1573,7 +2158,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                 onClick={() => void handleDeleteSelection()}
                 style={{ padding: '4px 10px', fontSize: 11 }}
               >
-                🗑 Excluir (Del)
+                <Trash size={13} /> Excluir (Del)
               </button>
             </div>
           </div>
@@ -1684,7 +2269,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                             )
                           }
                         >
-                          ↑
+                          <ArrowUp size={12} />
                         </button>
                         <button
                           type="button"
@@ -1699,7 +2284,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                             )
                           }
                         >
-                          ↓
+                          <ArrowDown size={12} />
                         </button>
                         <button
                           type="button"
@@ -1714,7 +2299,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                             )
                           }
                         >
-                          {ov.hidden ? '🚫' : '👁'}
+                          {ov.hidden ? <EyeSlash size={12} /> : <Eye size={12} />}
                         </button>
                       </div>
                     </div>
@@ -1746,8 +2331,8 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                       }}
                     >
                       <div>
-                        <div style={{ fontSize: 12, fontWeight: 800, color: '#f8fafc' }}>
-                          立方 {obj.label}
+                        <div style={{ fontSize: 12, fontWeight: 800, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <Box3D size={13} /> {obj.label}
                         </div>
                         <div style={{ fontSize: 10, color: '#94a3b8' }}>
                           <code>{obj.id}</code> · [{obj.position.join(', ')}]
@@ -1772,7 +2357,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                           );
                         }}
                       >
-                        {obj.hidden ? '🚫' : '👁'}
+                        {obj.hidden ? <EyeSlash size={12} /> : <Eye size={12} />}
                       </button>
                     </div>
                   );
@@ -1948,7 +2533,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                           )
                         }
                       >
-                        ⫷ Esq
+                        <AlignLeft size={12} /> Esq
                       </button>
                       <button
                         type="button"
@@ -1956,7 +2541,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                         data-testid="align-center-h-btn"
                         style={{ fontSize: 10, padding: '3px 6px' }}
                         onClick={() => {
-                          const w = selectedOverlay.width || 320;
+                          const w = selectedOverlay.width || selectedOverlayRect?.width || 320;
                           void handleOverlayCommit(
                             selectedOverlayIndices[0],
                             { x: Math.round((720 - w) / 2) },
@@ -1964,14 +2549,14 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                           );
                         }}
                       >
-                        ⫼ Centro H
+                        <AlignCenter size={12} /> Centro H
                       </button>
                       <button
                         type="button"
                         className="om-button"
                         style={{ fontSize: 10, padding: '3px 6px' }}
                         onClick={() => {
-                          const w = selectedOverlay.width || 320;
+                          const w = selectedOverlay.width || selectedOverlayRect?.width || 320;
                           const rightM = activeDesignKit?.safeArea.rightPx ?? 32;
                           void handleOverlayCommit(
                             selectedOverlayIndices[0],
@@ -1980,7 +2565,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                           );
                         }}
                       >
-                        Dir ⫸
+                        Dir <AlignRight size={12} />
                       </button>
                     </div>
 
@@ -1993,7 +2578,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                           data-testid="inspector-ov-x"
                           className="vs-input"
                           style={{ padding: '4px 6px', fontSize: 12 }}
-                          value={selectedOverlay.x ?? 50}
+                          value={Math.round(selectedOverlay.x ?? selectedOverlayRect?.left ?? 50)}
                           onChange={(e) =>
                             void handleOverlayCommit(
                               selectedOverlayIndices[0],
@@ -2010,7 +2595,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                           data-testid="inspector-ov-y"
                           className="vs-input"
                           style={{ padding: '4px 6px', fontSize: 12 }}
-                          value={selectedOverlay.y ?? 96}
+                          value={Math.round(selectedOverlay.y ?? selectedOverlayRect?.top ?? 96)}
                           onChange={(e) =>
                             void handleOverlayCommit(
                               selectedOverlayIndices[0],
@@ -2027,7 +2612,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                           data-testid="inspector-ov-width"
                           className="vs-input"
                           style={{ padding: '4px 6px', fontSize: 12 }}
-                          value={selectedOverlay.width ?? 360}
+                          value={Math.round(selectedOverlay.width ?? selectedOverlayRect?.width ?? 360)}
                           onChange={(e) =>
                             void handleOverlayCommit(
                               selectedOverlayIndices[0],
@@ -2384,7 +2969,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
 
                 {!validationResult ? (
                   <div style={{ fontSize: 12, color: '#94a3b8' }}>
-                    Clique em <strong>✓ Validar Kit</strong> para checar cores fora da paleta, fontes não permitidas e safe areas 9:16.
+                    Clique em <strong>Validar Kit</strong> para checar cores fora da paleta, fontes não permitidas e safe areas 9:16.
                   </div>
                 ) : validationResult.issues.length === 0 ? (
                   <div
@@ -2395,9 +2980,15 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                       border: '1px solid rgba(34, 197, 94, 0.4)',
                       fontSize: 12,
                       color: '#86efac',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
                     }}
                   >
-                    ✓ Todas as cenas, cores, fontes e safe areas respeitam o Design Kit "{activeDesignKit?.name}".
+                    <CheckCircleIcon size={15} />
+                    <span>
+                      Todas as cenas, cores, fontes e safe areas respeitam o Design Kit "{activeDesignKit?.name}".
+                    </span>
                   </div>
                 ) : (
                   validationResult.issues.map((iss, idx) => (
@@ -2418,7 +3009,9 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                         [{iss.severity.toUpperCase()}] {iss.path}
                       </div>
                       <div style={{ color: '#f8fafc', marginTop: 2 }}>{iss.message}</div>
-                      <div style={{ color: '#94a3b8', marginTop: 2 }}>💡 {iss.suggestion}</div>
+                      <div style={{ color: '#94a3b8', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Lightbulb size={12} /> <span>{iss.suggestion}</span>
+                      </div>
                     </div>
                   ))
                 )}
@@ -2504,20 +3097,20 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
             <div style={{ height: 24, padding: '4px 10px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
               TEMPO (s)
             </div>
-            <div style={{ height: 36, padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.06)', color: '#f5c518' }}>
-              🎬 V1 · Cenas 3D
+            <div style={{ height: 36, padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.06)', color: '#f5c518', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <FilmSlate size={13} /> V1 · Cenas 3D
             </div>
-            <div style={{ height: 45, padding: '12px 10px', borderBottom: '1px solid rgba(255,255,255,0.06)', color: '#38bdf8' }}>
-              ✥ V2 · Overlays 2D
+            <div style={{ height: 45, padding: '12px 10px', borderBottom: '1px solid rgba(255,255,255,0.06)', color: '#38bdf8', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <ArrowsOutCardinal size={13} /> V2 · Overlays 2D
             </div>
-            <div style={{ height: 28, padding: '5px 10px', borderBottom: '1px solid rgba(255,255,255,0.06)', color: '#fde047' }}>
-              💬 C1 · Legendas
+            <div style={{ height: 28, padding: '5px 10px', borderBottom: '1px solid rgba(255,255,255,0.06)', color: '#fde047', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <ClosedCaptioning size={13} /> C1 · Legendas
             </div>
-            <div style={{ height: 38, padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.06)', color: '#22c55e' }}>
-              🎙 A1 · Narração TTS
+            <div style={{ height: 38, padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.06)', color: '#22c55e', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Microphone size={13} /> A1 · Narração TTS
             </div>
-            <div style={{ height: 30, padding: '6px 10px', borderBottom: '1px solid rgba(255,255,255,0.06)', color: '#c084fc' }}>
-              🎵 A2 · Música & SFX
+            <div style={{ height: 30, padding: '6px 10px', borderBottom: '1px solid rgba(255,255,255,0.06)', color: '#c084fc', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <MusicNote size={13} /> A2 · Música &amp; SFX
             </div>
           </div>
 
@@ -2580,7 +3173,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                       data-testid={`timeline-scene-clip-${sp.index}`}
                       onClick={() => {
                         setActiveSceneIdx(sp.index);
-                        setPlayhead(Number((sp.start + 0.1).toFixed(2)));
+                        seekTo(Number((sp.start + 0.1).toFixed(2)));
                       }}
                       style={{
                         position: 'absolute',
@@ -2645,8 +3238,11 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                   const laneH = Math.floor(39 / laneCount);
                   return (sp.scene?.overlays || []).map((ov, ovIdx) => {
                     if (ov.hidden) return null;
-                    const ovStart = sp.start + (ov.startOffset ?? 0);
-                    const ovEnd = sp.start + (ov.endOffset ?? sp.duration);
+                    const liveSpan = liveOverlaySpans[`${sp.index}-${ovIdx}`];
+                    const effStartOffset = liveSpan?.startOffset ?? ov.startOffset ?? 0;
+                    const effEndOffset = liveSpan?.endOffset ?? ov.endOffset ?? sp.duration;
+                    const ovStart = sp.start + effStartOffset;
+                    const ovEnd = sp.start + effEndOffset;
                     const ovDur = Math.max(0.3, ovEnd - ovStart);
                     const isSel =
                       sp.index === activeSceneIdx && selectedOverlayIndices.includes(ovIdx);
@@ -2718,7 +3314,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                 {captionBlocks.map((cb) => (
                   <div
                     key={cb.id}
-                    onClick={() => setPlayhead(cb.start)}
+                    onClick={() => seekTo(cb.start)}
                     style={{
                       position: 'absolute',
                       left: cb.start * pxPerSec,
@@ -2753,36 +3349,48 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                   background: 'rgba(6, 24, 18, 0.45)',
                 }}
               >
-                {sceneSpans.spans.map((sp) => (
-                  <div
-                    key={`wav-${sp.id}`}
-                    onClick={() => {
-                      setActiveSceneIdx(sp.index);
-                      setPlayhead(sp.start);
-                    }}
-                    style={{
-                      position: 'absolute',
-                      left: sp.start * pxPerSec,
-                      width: Math.max(24, sp.duration * pxPerSec - 2),
-                      top: 3,
-                      bottom: 3,
-                      borderRadius: 5,
-                      background: 'rgba(16, 185, 129, 0.14)',
-                      border: '1px solid rgba(34, 197, 94, 0.45)',
-                      overflow: 'hidden',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <AudioWaveform
-                      narration={sp.scene?.narration || sp.kineticBlock?.narration || ''}
-                      duration={sp.duration}
-                      wordTimestamps={sp.scene?.wordTimestamps || sp.kineticBlock?.wordTimestamps}
-                      barColor="#22c55e"
-                      baselineColor="rgba(34, 197, 94, 0.25)"
-                      kind="speech"
-                    />
-                  </div>
-                ))}
+                {sceneSpans.spans.map((sp) => {
+                  const activeVoiceSource = voicePeaks || masterPeaks;
+                  const scenePeaks = activeVoiceSource
+                    ? decimatePeaks(
+                        activeVoiceSource,
+                        sp.start / Math.max(0.1, totalDuration),
+                        sp.end / Math.max(0.1, totalDuration),
+                        80
+                      )
+                    : undefined;
+                  return (
+                    <div
+                      key={`wav-${sp.id}`}
+                      onClick={() => {
+                        setActiveSceneIdx(sp.index);
+                        seekTo(sp.start);
+                      }}
+                      style={{
+                        position: 'absolute',
+                        left: sp.start * pxPerSec,
+                        width: Math.max(24, sp.duration * pxPerSec - 2),
+                        top: 3,
+                        bottom: 3,
+                        borderRadius: 5,
+                        background: 'rgba(16, 185, 129, 0.14)',
+                        border: '1px solid rgba(34, 197, 94, 0.45)',
+                        overflow: 'hidden',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <AudioWaveform
+                        narration={sp.scene?.narration || sp.kineticBlock?.narration || ''}
+                        duration={sp.duration}
+                        wordTimestamps={sp.scene?.wordTimestamps || sp.kineticBlock?.wordTimestamps}
+                        peaks={scenePeaks}
+                        barColor="#22c55e"
+                        baselineColor="rgba(34, 197, 94, 0.25)"
+                        kind="speech"
+                      />
+                    </div>
+                  );
+                })}
               </div>
 
               {/* 5. Trilha A2: Música Master (Sidechain Ducking) + Marcadores de SFX */}
@@ -2808,6 +3416,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                 >
                   <AudioWaveform
                     duration={totalDuration}
+                    peaks={masterPeaks || undefined}
                     barColor="#c084fc"
                     baselineColor="rgba(192, 132, 252, 0.2)"
                     kind="music"
@@ -2831,9 +3440,12 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                         padding: '1px 5px',
                         borderRadius: 4,
                         zIndex: 4,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 3,
                       }}
                     >
-                      🔊 {sfx}
+                      <SpeakerHigh size={10} /> {sfx}
                     </div>
                   );
                 })}

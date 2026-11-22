@@ -110,12 +110,14 @@ export async function synthesizeProjectAudio(
     }
   }
 
-  const updatedProject = service.updateProject(projectId, {
-    scenes: project.scenes,
-    kineticBlocks: project.kineticBlocks,
-    freeform: project.freeform,
-    status: 'synthesized',
-  });
+  const computedTotalDuration =
+    project.engine === 'freeform' && project.freeform
+      ? Number(project.freeform.duration.toFixed(2))
+      : project.engine === 'kinetic' && project.kineticBlocks.length > 0
+        ? Number(project.kineticBlocks.reduce((acc, b) => acc + (b.duration || 3.5), 0).toFixed(2))
+        : project.scenes.length > 0
+          ? Number(project.scenes.reduce((acc, s) => acc + (s.duration || 4.0), 0).toFixed(2))
+          : project.totalDuration || project.targetDuration || 15;
 
   const mixedAudioPath = path.join(audioDir, 'mixed-master.wav');
   const sfxDir = path.isAbsolute(settings.sfxDir)
@@ -127,11 +129,18 @@ export async function synthesizeProjectAudio(
 
   await mixProjectAudio({
     segments,
-    totalDuration: updatedProject.totalDuration,
-    renderSettings: updatedProject.renderSettings,
+    totalDuration: computedTotalDuration,
+    renderSettings: project.renderSettings,
     sfxDir,
     musicDir,
     outputWavPath: mixedAudioPath,
+  });
+
+  const updatedProject = service.updateProject(projectId, {
+    scenes: project.scenes,
+    kineticBlocks: project.kineticBlocks,
+    freeform: project.freeform,
+    status: 'synthesized',
   });
 
   onLog?.(`Mixagem de áudio FFmpeg concluída: ${mixedAudioPath}`);

@@ -15,6 +15,19 @@ import type {
   Scene,
 } from '@kinema/core';
 import { ThreeViewport } from '../components/ThreeViewport.tsx';
+import {
+  Check,
+  ClipboardText,
+  Download,
+  FilmSlate,
+  Image as ImageIcon,
+  Palette,
+  Ruler,
+  Sparkle,
+  TextT,
+  Upload,
+  X,
+} from '../design-system/react/RemixIcons.tsx';
 
 export interface DesignKitsWorkspaceProps {
   designKits: DesignKit[];
@@ -330,7 +343,7 @@ export const DesignKitsWorkspace: React.FC<DesignKitsWorkspaceProps> = ({
             className="om-button"
             onClick={() => importJsonInputRef.current?.click()}
           >
-            📥 Importar JSON
+            <Download size={14} /> Importar JSON
           </button>
           <input
             ref={importJsonInputRef}
@@ -349,7 +362,7 @@ export const DesignKitsWorkspace: React.FC<DesignKitsWorkspaceProps> = ({
             data-testid="export-design-kit-btn"
             onClick={handleExportKitJson}
           >
-            📤 Exportar JSON
+            <Upload size={14} /> Exportar JSON
           </button>
           {activeProject && (
             <button
@@ -359,7 +372,7 @@ export const DesignKitsWorkspace: React.FC<DesignKitsWorkspaceProps> = ({
               data-testid="apply-kit-to-active-project-btn"
               onClick={() => void onApplyKitToProject(selectedKit.id)}
             >
-              ✓ Aplicar "{selectedKit.name}" ao Projeto ({activeProject.id})
+              <Check size={14} /> Aplicar "{selectedKit.name}" ao Projeto ({activeProject.id})
             </button>
           )}
         </div>
@@ -668,13 +681,13 @@ export const DesignKitsWorkspace: React.FC<DesignKitsWorkspaceProps> = ({
           >
             {(
               [
-                ['palette', '🎨 Paleta & Papéis de Cor'],
-                ['typography', '🔤 Tipografia & Escala'],
-                ['shapes', '📐 Safe Areas, Overlays & 3D'],
-                ['references', `🖼 Referências & Rea-Video (${selectedKit.references.length})`],
-                ['rules', `📋 Regras & Tom de Voz (${selectedKit.rules.length})`],
+                ['palette', 'Paleta & Papéis de Cor', <Palette key="palette" size={14} />],
+                ['typography', 'Tipografia & Escala', <TextT key="typography" size={14} />],
+                ['shapes', 'Safe Areas, Overlays & 3D', <Ruler key="shapes" size={14} />],
+                ['references', `Referências & Rea-Video (${selectedKit.references.length})`, <ImageIcon key="references" size={14} />],
+                ['rules', `Regras & Tom de Voz (${selectedKit.rules.length})`, <ClipboardText key="rules" size={14} />],
               ] as const
-            ).map(([tabId, label]) => (
+            ).map(([tabId, label, icon]) => (
               <button
                 key={tabId}
                 type="button"
@@ -688,6 +701,9 @@ export const DesignKitsWorkspace: React.FC<DesignKitsWorkspaceProps> = ({
                   borderRadius: 8,
                   border: 'none',
                   cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
                   background:
                     inspectorTab === tabId ? selectedKit.palette.primary : 'rgba(30, 41, 59, 0.7)',
                   color:
@@ -996,7 +1012,7 @@ export const DesignKitsWorkspace: React.FC<DesignKitsWorkspaceProps> = ({
                     disabled={busy}
                     onClick={() => refFileInputRef.current?.click()}
                   >
-                    📤 Upload Imagem/Vídeo
+                    <Upload size={14} /> Upload Imagem/Vídeo
                   </button>
                   <input
                     ref={refFileInputRef}
@@ -1017,7 +1033,7 @@ export const DesignKitsWorkspace: React.FC<DesignKitsWorkspaceProps> = ({
                     disabled={busy}
                     onClick={() => void handleGeneratePaletteFromReferences()}
                   >
-                    ✨ Extrair Paleta Dominante das Referências
+                    <Sparkle size={14} /> Extrair Paleta Dominante das Referências
                   </button>
                 </div>
               </div>
@@ -1107,9 +1123,12 @@ export const DesignKitsWorkspace: React.FC<DesignKitsWorkspaceProps> = ({
                           background: 'rgba(56, 189, 248, 0.1)',
                           padding: '4px 8px',
                           borderRadius: 6,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
                         }}
                       >
-                        🎬 Ficha Rea-Video: {ref.breakdownSummary}
+                        <FilmSlate size={13} /> Ficha Rea-Video: {ref.breakdownSummary}
                       </div>
                     )}
                   </div>
@@ -1176,7 +1195,7 @@ export const DesignKitsWorkspace: React.FC<DesignKitsWorkspaceProps> = ({
                       )
                     }
                   >
-                    ✕
+                    <X size={12} />
                   </button>
                 </div>
               ))}

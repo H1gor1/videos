@@ -77,10 +77,46 @@ export function buildSyntheticSpeechPeaks(
   return peaks;
 }
 
+/**
+ * Extrai picos normalizados [0.06..1] a partir de um AudioBuffer real decodificado via Web Audio API.
+ */
+export function extractAudioPeaksFromBuffer(audioBuffer: AudioBuffer, binCount = 420): number[] {
+  const count = Math.max(24, binCount);
+  const length = audioBuffer.length;
+  if (length <= 0) return new Array<number>(count).fill(0.08);
+  const numChannels = Math.max(1, audioBuffer.numberOfChannels);
+  const channels: Float32Array[] = [];
+  for (let c = 0; c < numChannels; c++) {
+    channels.push(audioBuffer.getChannelData(c));
+  }
+
+  const rawMax = new Array<number>(count).fill(0);
+  let globalMax = 0.001;
+  const samplesPerBin = Math.max(1, Math.floor(length / count));
+  const step = Math.max(1, Math.floor(samplesPerBin / 64));
+
+  for (let i = 0; i < count; i++) {
+    const start = Math.floor((i / count) * length);
+    const end = Math.min(length, Math.floor(((i + 1) / count) * length));
+    let peak = 0;
+    for (let s = start; s < end; s += step) {
+      for (let c = 0; c < numChannels; c++) {
+        const v = Math.abs(channels[c][s]);
+        if (v > peak) peak = v;
+      }
+    }
+    rawMax[i] = peak;
+    if (peak > globalMax) globalMax = peak;
+  }
+
+  return rawMax.map((v) => Math.max(0.06, Math.min(1, v / globalMax)));
+}
+
 export interface AudioWaveformProps {
   narration?: string;
   duration: number;
   wordTimestamps?: WordTimestamp[];
+  peaks?: readonly number[];
   barColor?: string;
   baselineColor?: string;
   trimStartFraction?: number;
@@ -92,6 +128,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
   narration = '',
   duration,
   wordTimestamps,
+  peaks,
   barColor = '#38bdf8',
   baselineColor = 'rgba(56, 189, 248, 0.25)',
   trimStartFraction = 0,
@@ -101,6 +138,9 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const rawPeaks = useMemo(() => {
+    if (peaks && peaks.length > 0) {
+      return peaks;
+    }
     if (kind === 'music') {
       const count = 120;
       return Array.from({ length: count }, (_, i) => {
@@ -109,7 +149,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
       });
     }
     return buildSyntheticSpeechPeaks(narration, duration, wordTimestamps, 96);
-  }, [narration, duration, wordTimestamps, kind]);
+  }, [peaks, narration, duration, wordTimestamps, kind]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

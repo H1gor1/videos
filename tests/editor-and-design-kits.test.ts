@@ -10,6 +10,12 @@ import {
   buildSafeAreaSnapTarget,
   resolveSnapAdjustment,
 } from '../apps/web/src/editor/snapEngine.ts';
+import {
+  ALL_RESIZE_HANDLES,
+  DragCommitSession,
+  computeResizedRect720,
+} from '../apps/web/src/editor/overlayDragSession.ts';
+import { decimatePeaks, extractAudioPeaksFromBuffer } from '../apps/web/src/editor/AudioWaveform.tsx';
 
 describe('Editor NLE: Histórico Undo/Redo, Snapping Magnético, Overrides 2D/3D e Design Kits', () => {
   let tempRoot: string;
@@ -217,5 +223,105 @@ describe('Editor NLE: Histórico Undo/Redo, Snapping Magnético, Overrides 2D/3D
     expect(messages).toContain('#00ff11');
     expect(messages).toContain('Comic Sans MS');
     expect(messages).toContain('safe area');
+  });
+
+  it('DragCommitSession aplica updates ao vivo sem commitar, faz 1 único commit no pointerup e 0 no cancel (Esc)', () => {
+    const history = new EditHistoryManager<Project>(20);
+    const p0 = service.getProject('simulacao-demo');
+    const sceneId = p0.scenes[0].id;
+    const liveFrames: Array<{ x: number; y: number }> = [];
+    const commits: Array<{ x: number; y: number }> = [];
+    let currentLive = { x: p0.scenes[0].overlays[0].x ?? 40, y: p0.scenes[0].overlays[0].y ?? 60 };
+
+    // 1. Sessão normal: múltiplos moves -> 1 único commit ao finalizar
+    const session = new DragCommitSession<{ x: number; y: number }>({
+      onLiveUpdate: (patch) => {
+        currentLive = patch;
+        liveFrames.push(patch);
+      },
+      onCommit: (patch) => {
+        commits.push(patch);
+        const before = service.getProject('simulacao-demo');
+        const updated = service.updateScene('simulacao-demo', sceneId, {
+          overlays: before.scenes[0].overlays.map((ov, idx) =>
+            idx === 0 ? { ...ov, x: patch.x, y: patch.y } : ov
+          ),
+        });
+        history.record('Mover overlay', before, updated);
+      },
+      onCancel: () => {
+        currentLive = { x: p0.scenes[0].overlays[0].x ?? 40, y: p0.scenes[0].overlays[0].y ?? 60 };
+      },
+    });
+
+    session.update({ x: 110, y: 120 });
+    session.update({ x: 145, y: 175 });
+    session.update({ x: 192, y: 244 });
+    expect(liveFrames).toHaveLength(3);
+    expect(commits).toHaveLength(0);
+    expect(history.canUndo()).toBe(false);
+
+    const committed = session.finish();
+    expect(committed).toBe(true);
+    expect(commits).toEqual([{ x: 192, y: 244 }]);
+    expect(history.canUndo()).toBe(true);
+
+    // Undo restaura o estado anterior de uma vez só (única entrada no histórico)
+    const undoSnap = history.undo();
+    expect(undoSnap?.before.scenes[0].overlays[0].x).toBe(p0.scenes[0].overlays[0].x);
+    expect(history.canUndo()).toBe(false);
+
+    // 2. Sessão cancelada com Esc: nenhuma mutação persistida nem entrada no histórico
+    const cancelSession = new DragCommitSession<{ x: number; y: number }>({
+      onLiveUpdate: (patch) => {
+        currentLive = patch;
+      },
+      onCommit: (patch) => {
+        commits.push(patch);
+      },
+      onCancel: () => {
+        currentLive = { x: 40, y: 60 };
+      },
+    });
+    cancelSession.update({ x: 300, y: 400 });
+    cancelSession.cancel();
+    expect(cancelSession.finish()).toBe(false);
+    expect(commits).toHaveLength(1);
+    expect(currentLive).toEqual({ x: 40, y: 60 });
+  });
+
+  it('computeResizedRect720 suporta os 8 handles com âncora oposta e clamp mínimo', () => {
+    expect(ALL_RESIZE_HANDLES).toEqual(['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']);
+    const base = { left: 100, top: 200, width: 300, height: 100 };
+
+    const se = computeResizedRect720(base, 'se', 50, 40);
+    expect(se).toEqual({ left: 100, top: 200, width: 350, height: 140 });
+
+    const nw = computeResizedRect720(base, 'nw', 20, 15);
+    expect(nw).toEqual({ left: 120, top: 215, width: 280, height: 85 });
+
+    // Clamp mínimo 96x36 quando puxa além da largura/altura mínima
+    const clamped = computeResizedRect720(base, 'nw', 500, 500);
+    expect(clamped).toEqual({ left: 304, top: 264, width: 96, height: 36 });
+  });
+
+  it('extractAudioPeaksFromBuffer e decimatePeaks extraem picos normalizados do áudio real', () => {
+    // 48 amostras divididas em 24 bins: primeira metade baixa (0.25), segunda metade pico máximo (1.0)
+    const ch0 = new Float32Array(48);
+    for (let i = 0; i < 24; i++) ch0[i] = 0.25;
+    for (let i = 24; i < 48; i++) ch0[i] = -1.0;
+    const fakeBuffer = {
+      numberOfChannels: 1,
+      length: ch0.length,
+      getChannelData: () => ch0,
+    } as unknown as AudioBuffer;
+    const peaks = extractAudioPeaksFromBuffer(fakeBuffer, 24);
+    expect(peaks).toHaveLength(24);
+    expect(peaks[0]).toBeCloseTo(0.25, 4);
+    expect(peaks[23]).toBeCloseTo(1.0, 4);
+
+    const slice = decimatePeaks(peaks, 0.5, 1, 2);
+    expect(slice[0]).toBeCloseTo(1.0, 4);
+    expect(slice[1]).toBeCloseTo(1.0, 4);
   });
 });

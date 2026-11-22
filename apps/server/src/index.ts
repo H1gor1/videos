@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, openSync, readFileSync, readSync, closeSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
@@ -499,8 +499,12 @@ export function createServerApp(rootDir = WORKSPACE_ROOT) {
   // 7. ARQUIVOS ESTÁTICOS (Renders, Composições, Previews, UI Web)
   // ==========================================================================
 
-  const serveFileFromDisk = (absPath: string) => {
+  const serveFileFromDisk = (absPath: string, req?: Request) => {
     if (!existsSync(absPath)) {
+      return new Response('Not Found', { status: 404 });
+    }
+    const stat = statSync(absPath);
+    if (!stat.isFile()) {
       return new Response('Not Found', { status: 404 });
     }
     const ext = path.extname(absPath).toLowerCase();
@@ -522,44 +526,93 @@ export function createServerApp(rootDir = WORKSPACE_ROOT) {
       '.woff': 'font/woff',
       '.ttf': 'font/ttf',
     };
+    const contentType = mimeMap[ext] || 'application/octet-stream';
+    const totalSize = stat.size;
+    const isHead = req?.method === 'HEAD';
+    const rangeHeader = req?.headers.get('range');
+
+    if (rangeHeader && totalSize > 0) {
+      const m = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim());
+      if (m) {
+        const start = m[1] ? Number(m[1]) : 0;
+        const end = m[2] ? Math.min(totalSize - 1, Number(m[2])) : totalSize - 1;
+        if (Number.isFinite(start) && Number.isFinite(end) && start >= 0 && start <= end && start < totalSize) {
+          const chunkLen = end - start + 1;
+          const headers = {
+            'Content-Type': contentType,
+            'Accept-Ranges': 'bytes',
+            'Content-Range': `bytes ${start}-${end}/${totalSize}`,
+            'Content-Length': String(chunkLen),
+            'Cache-Control': 'no-cache',
+          };
+          if (isHead) {
+            return new Response(null, { status: 206, headers });
+          }
+          const chunk = Buffer.alloc(chunkLen);
+          const fd = openSync(absPath, 'r');
+          try {
+            readSync(fd, chunk, 0, chunkLen, start);
+          } finally {
+            closeSync(fd);
+          }
+          return new Response(chunk, { status: 206, headers });
+        }
+        return new Response('Range Not Satisfiable', {
+          status: 416,
+          headers: { 'Content-Range': `bytes */${totalSize}` },
+        });
+      }
+    }
+
+    const baseHeaders = {
+      'Content-Type': contentType,
+      'Accept-Ranges': 'bytes',
+      'Content-Length': String(totalSize),
+      'Cache-Control': 'no-cache',
+    };
+    if (isHead) {
+      return new Response(null, { status: 200, headers: baseHeaders });
+    }
     const buf = readFileSync(absPath);
     return new Response(buf, {
       status: 200,
-      headers: {
-        'Content-Type': mimeMap[ext] || 'application/octet-stream',
-        'Cache-Control': 'no-cache',
-      },
+      headers: baseHeaders,
     });
   };
 
   app.get('/renders/*', (c) => {
     const rel = c.req.path.replace(/^\/renders\//, '');
-    const target = path.resolve(rootDir, 'renders', rel);
-    if (!target.startsWith(path.resolve(rootDir, 'renders'))) {
+    const baseDir = path.resolve(rootDir, 'renders');
+    const target = path.resolve(baseDir, rel);
+    if (target !== baseDir && !target.startsWith(baseDir + path.sep)) {
       return c.text('Forbidden', 403);
     }
-    return serveFileFromDisk(target);
+    return serveFileFromDisk(target, c.req.raw);
   });
 
   app.get('/project-files/:projectId/*', (c) => {
     const projectId = c.req.param('projectId');
-    const prefix = `/project-files/${projectId}/`;
-    const rel = c.req.path.slice(prefix.length);
-    const projectBase = service.getProjectDir(projectId);
-    const target = path.resolve(projectBase, rel);
-    if (!target.startsWith(path.resolve(projectBase))) {
+    if (!/^[a-zA-Z0-9._-]+$/.test(projectId) || projectId === '.' || projectId === '..') {
       return c.text('Forbidden', 403);
     }
-    return serveFileFromDisk(target);
+    const prefix = `/project-files/${projectId}/`;
+    const rel = c.req.path.slice(prefix.length);
+    const projectBase = path.resolve(service.getProjectDir(projectId));
+    const target = path.resolve(projectBase, rel);
+    if (target !== projectBase && !target.startsWith(projectBase + path.sep)) {
+      return c.text('Forbidden', 403);
+    }
+    return serveFileFromDisk(target, c.req.raw);
   });
 
   app.get('/data-files/*', (c) => {
     const rel = c.req.path.replace(/^\/data-files\//, '');
-    const target = path.resolve(service.dataDir, rel);
-    if (!target.startsWith(path.resolve(service.dataDir))) {
+    const dataBase = path.resolve(service.dataDir);
+    const target = path.resolve(dataBase, rel);
+    if (target !== dataBase && !target.startsWith(dataBase + path.sep)) {
       return c.text('Forbidden', 403);
     }
-    return serveFileFromDisk(target);
+    return serveFileFromDisk(target, c.req.raw);
   });
 
   // Servir build da interface web (apps/web/dist)

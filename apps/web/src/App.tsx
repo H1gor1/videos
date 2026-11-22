@@ -27,6 +27,29 @@ import type {
 import { ThreeViewport } from './components/ThreeViewport.tsx';
 import { NleEditorWorkspace } from './editor/NleEditorWorkspace.tsx';
 import { DesignKitsWorkspace } from './design-kits/DesignKitsWorkspace.tsx';
+import {
+  ArrowRight,
+  ArrowSquareOut,
+  BookOpen,
+  Camera,
+  Check,
+  Clock,
+  Download,
+  FilmSlate,
+  FilmStrip,
+  FloppyDisk,
+  Gear,
+  Palette,
+  Pause,
+  Play,
+  Refresh,
+  Rocket,
+  Search,
+  Sparkle,
+  SpeakerHigh,
+  User,
+  WarningIcon,
+} from './design-system/react/RemixIcons.tsx';
 
 type ScreenId =
   | 'dashboard'
@@ -129,6 +152,9 @@ export const App: React.FC = () => {
   const [previewFrames, setPreviewFrames] = useState<Array<{ timestamp: number; url: string; sceneId?: string }>>([]);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [dragSceneIdx, setDragSceneIdx] = useState<number | null>(null);
+  const [audioRevision, setAudioRevision] = useState(0);
+  const [timelineAudioReady, setTimelineAudioReady] = useState(false);
+  const [timelineAudioMissing, setTimelineAudioMissing] = useState(false);
 
   // Estado de Configurações
   const [settingsTab, setSettingsTab] = useState<'providers' | 'integrations'>('providers');
@@ -207,9 +233,17 @@ export const App: React.FC = () => {
             return [payload.data, ...prev];
           });
           if (payload.data.status === 'completed') {
+            setAudioRevision((v) => v + 1);
             fetchAllData();
           }
         } else {
+          if (
+            payload.type === 'project:updated' &&
+            payload.data &&
+            (payload.data as { status?: string }).status === 'synthesized'
+          ) {
+            setAudioRevision((v) => v + 1);
+          }
           fetchAllData();
         }
       } catch {
@@ -255,6 +289,35 @@ export const App: React.FC = () => {
     [characters, activeCharId]
   );
 
+  const timelineAudioUrl = useMemo(() => {
+    if (!activeProject) return '';
+    return `/project-files/${encodeURIComponent(activeProject.id)}/audio/mixed-master.wav?v=${audioRevision}`;
+  }, [activeProject?.id, audioRevision]);
+
+  useEffect(() => {
+    setTimelineAudioReady(false);
+    setTimelineAudioMissing(false);
+    setIsPlayingTimeline(false);
+  }, [timelineAudioUrl]);
+
+  const seekTimeline = useCallback(
+    (timeSec: number) => {
+      const total = Math.max(1, activeProject?.totalDuration || 15);
+      const clamped = Math.max(0, Math.min(total, Number(timeSec.toFixed(3))));
+      setPlayhead(clamped);
+      const el = audioRef.current;
+      if (el && timelineAudioReady) {
+        try {
+          const maxAudio = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : total;
+          el.currentTime = Math.min(clamped, maxAudio);
+        } catch {
+          // ignore before metadata
+        }
+      }
+    },
+    [activeProject?.totalDuration, timelineAudioReady]
+  );
+
   // Seek do iframe HyperFrames quando o usuário arrasta o playhead na Timeline
   useEffect(() => {
     const win = iframeRef.current?.contentWindow as any;
@@ -263,13 +326,50 @@ export const App: React.FC = () => {
     }
   }, [playhead]);
 
-  // Loop de reprodução da Timeline
+  // Loop de reprodução da Timeline (audioRef como relógio mestre quando disponível)
   useEffect(() => {
-    if (!isPlayingTimeline || !activeProject) return;
-    const total = Math.max(1, activeProject.totalDuration || 15);
-    let raf = 0;
-    let last = performance.now();
+    if (!isPlayingTimeline || !activeProject) {
+      const el = audioRef.current;
+      if (el && !el.paused) {
+        el.pause();
+        if (timelineAudioReady) {
+          setPlayhead(Number(el.currentTime.toFixed(3)));
+        }
+      }
+      return;
+    }
 
+    const total = Math.max(1, activeProject.totalDuration || 15);
+    const el = audioRef.current;
+    let raf = 0;
+
+    if (el && timelineAudioReady && !timelineAudioMissing) {
+      if (playhead >= total - 0.04) {
+        el.currentTime = 0;
+        setPlayhead(0);
+      } else if (Math.abs(el.currentTime - playhead) > 0.04) {
+        el.currentTime = playhead;
+      }
+      void el.play().catch(() => {});
+
+      const stepAudio = () => {
+        const current = el.currentTime;
+        setPlayhead(current);
+        if (el.ended || current >= total) {
+          el.pause();
+          setIsPlayingTimeline(false);
+          return;
+        }
+        raf = requestAnimationFrame(stepAudio);
+      };
+      raf = requestAnimationFrame(stepAudio);
+      return () => {
+        cancelAnimationFrame(raf);
+        if (!el.paused) el.pause();
+      };
+    }
+
+    let last = performance.now();
     const step = (now: number) => {
       const dt = (now - last) / 1000;
       last = now;
@@ -281,7 +381,7 @@ export const App: React.FC = () => {
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [isPlayingTimeline, activeProject]);
+  }, [isPlayingTimeline, activeProject, timelineAudioReady, timelineAudioMissing]);
 
   // Handlers de ação
   const handleSelectProject = (id: string, goTo: ScreenId = 'editor') => {
@@ -348,6 +448,7 @@ export const App: React.FC = () => {
     setBusyAction('Sintetizando TTS + Mix FFmpeg...');
     try {
       await fetch(`/api/projects/${projectId}/synthesize`, { method: 'POST' });
+      setAudioRevision((v) => v + 1);
       await fetchAllData();
       showNotice('Narração TTS e mix de áudio concluídos!');
     } finally {
@@ -551,17 +652,17 @@ export const App: React.FC = () => {
         <nav className="vs-rail" aria-label="Navegação Principal">
           {(
             [
-              ['dashboard', 'Projetos', '🎬'],
-              ['editor', 'Editor NLE', '🎞️'],
-              ['design-kits', 'Design Kits', '🎨'],
-              ['library', 'Biblioteca', '📚'],
-              ['recreate', 'Recriar', '🔍'],
-              ['wizard', 'Wizard', '✨'],
-              ['characters', 'Personagem', '🧑'],
-              ['timeline', 'HyperFrames', '⏱️'],
-              ['render', 'Render', '🚀'],
-              ['settings', 'Config', '⚙️'],
-            ] as Array<[ScreenId, string, string]>
+              ['dashboard', 'Projetos', <FilmSlate key="dashboard" size={18} />],
+              ['editor', 'Editor NLE', <FilmStrip key="editor" size={18} />],
+              ['design-kits', 'Design Kits', <Palette key="design-kits" size={18} />],
+              ['library', 'Biblioteca', <BookOpen key="library" size={18} />],
+              ['recreate', 'Recriar', <Search key="recreate" size={18} />],
+              ['wizard', 'Wizard', <Sparkle key="wizard" size={18} />],
+              ['characters', 'Personagem', <User key="characters" size={18} />],
+              ['timeline', 'HyperFrames', <Clock key="timeline" size={18} />],
+              ['render', 'Render', <Rocket key="render" size={18} />],
+              ['settings', 'Config', <Gear key="settings" size={18} />],
+            ] as Array<[ScreenId, string, React.ReactNode]>
           ).map(([id, label, icon]) => (
             <button
               key={id}
@@ -569,7 +670,9 @@ export const App: React.FC = () => {
               className={`vs-rail-btn ${screen === id ? 'active' : ''}`}
               onClick={() => setScreen(id)}
             >
-              <span style={{ fontSize: 18 }}>{icon}</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                {icon}
+              </span>
               <span>{label}</span>
             </button>
           ))}
@@ -624,7 +727,9 @@ export const App: React.FC = () => {
                           <img src={thumbUrl} alt={p.title} />
                         ) : (
                           <div style={{ textAlign: 'center', padding: 16, color: 'var(--motion-muted)' }}>
-                            <div style={{ fontSize: 28, marginBottom: 6 }}>🎬</div>
+                            <div style={{ marginBottom: 6, display: 'flex', justifyContent: 'center' }}>
+                              <FilmSlate size={28} />
+                            </div>
                             <div style={{ fontSize: 12 }}>Pronto para compor/renderizar</div>
                           </div>
                         )}
@@ -717,7 +822,13 @@ export const App: React.FC = () => {
                     }
                   }}
                 >
-                  {syncingLib ? 'Sincronizando git repos...' : '↻ Sincronizar Biblioteca (library:sync)'}
+                  {syncingLib ? (
+                    'Sincronizando git repos...'
+                  ) : (
+                    <>
+                      <Refresh size={14} /> Sincronizar Biblioteca (library:sync)
+                    </>
+                  )}
                 </button>
               </div>
 
@@ -910,7 +1021,13 @@ export const App: React.FC = () => {
                       }
                     }}
                   >
-                    {breakingDown ? 'Analisando cortes com FFmpeg...' : '🔍 Analisar Vídeo & Extrair Cenas'}
+                    {breakingDown ? (
+                      'Analisando cortes com FFmpeg...'
+                    ) : (
+                      <>
+                        <Search size={14} /> Analisar Vídeo &amp; Extrair Cenas
+                      </>
+                    )}
                   </button>
                   {breakdown && (
                     <button
@@ -924,7 +1041,7 @@ export const App: React.FC = () => {
                         setScreen('wizard');
                       }}
                     >
-                      ✨ Criar Projeto no Wizard com este Breakdown
+                      <Sparkle size={14} /> Criar Projeto no Wizard com este Breakdown
                     </button>
                   )}
                 </div>
@@ -964,8 +1081,8 @@ export const App: React.FC = () => {
                           )}
                           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                             <span className="ui-badge ui-badge--accent">Plano #{shot.index + 1}</span>
-                            <span className="ui-badge">
-                              {shot.startTime}s → {shot.endTime}s ({shot.duration}s)
+                            <span className="ui-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              {shot.startTime}s <ArrowRight size={11} /> {shot.endTime}s ({shot.duration}s)
                             </span>
                           </div>
                           <div style={{ fontSize: 12, color: 'var(--motion-muted)' }}>
@@ -1181,7 +1298,13 @@ export const App: React.FC = () => {
                     disabled={wizBusy}
                     onClick={() => handleCreateWizardProject(true)}
                   >
-                    {wizBusy ? 'Gerando projeto...' : '✨ Gerar Roteiro + Cenas e Abrir no Editor'}
+                    {wizBusy ? (
+                      'Gerando projeto...'
+                    ) : (
+                      <>
+                        <Sparkle size={14} /> Gerar Roteiro + Cenas e Abrir no Editor
+                      </>
+                    )}
                   </button>
                   <button
                     className="ui-button"
@@ -1205,6 +1328,7 @@ export const App: React.FC = () => {
               templates={templates}
               designKits={designKits}
               libraryItems={libraryItems}
+              audioRevision={audioRevision}
               onProjectUpdated={(updated) => {
                 setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
               }}
@@ -1514,13 +1638,13 @@ export const App: React.FC = () => {
                     className="ui-button"
                     onClick={() => handleCapturePreviewFrames(activeProject.id)}
                   >
-                    📸 Capturar Frames PNG (HyperFrames Snapshot)
+                    <Camera size={14} /> Capturar Frames PNG (HyperFrames Snapshot)
                   </button>
                   <button
                     className="ui-button ui-button--primary"
                     onClick={() => handleComposePreview(activeProject.id)}
                   >
-                    🔄 Atualizar Composição Realtime
+                    <Refresh size={14} /> Atualizar Composição Realtime
                   </button>
                 </div>
               </div>
@@ -1558,10 +1682,48 @@ export const App: React.FC = () => {
 
                   <audio
                     ref={audioRef}
-                    src={`/project-files/${activeProject.id}/audio/mixed-master.wav`}
+                    src={timelineAudioUrl}
+                    preload="auto"
                     style={{ width: '100%', marginTop: 8 }}
                     controls
+                    onCanPlay={() => {
+                      setTimelineAudioReady(true);
+                      setTimelineAudioMissing(false);
+                    }}
+                    onError={() => {
+                      setTimelineAudioReady(false);
+                      setTimelineAudioMissing(true);
+                    }}
                   />
+                  {timelineAudioMissing && (
+                    <div
+                      style={{
+                        marginTop: 8,
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 8,
+                        padding: '6px 10px',
+                        borderRadius: 8,
+                        background: 'rgba(245, 158, 11, 0.14)',
+                        border: '1px solid rgba(245, 158, 11, 0.45)',
+                        color: '#fcd34d',
+                        fontSize: 12,
+                      }}
+                    >
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                        <WarningIcon size={14} /> Sem áudio: clique em TTS + Mix
+                      </span>
+                      <button
+                        type="button"
+                        className="ui-button ui-button--sm"
+                        onClick={() => void handleSynthesizeAudio(activeProject.id)}
+                      >
+                        <SpeakerHigh size={13} /> TTS + Mix
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Scrubber + Trilhas + Keyframes */}
@@ -1572,7 +1734,15 @@ export const App: React.FC = () => {
                         className="ui-button ui-button--primary"
                         onClick={() => setIsPlayingTimeline((p) => !p)}
                       >
-                        {isPlayingTimeline ? '⏸ Pausar' : '▶ Play Scrub'}
+                        {isPlayingTimeline ? (
+                          <>
+                            <Pause size={14} /> Pausar
+                          </>
+                        ) : (
+                          <>
+                            <Play size={14} /> Play Scrub
+                          </>
+                        )}
                       </button>
                       <span style={{ fontFamily: 'var(--motion-font-mono)', fontSize: 14, fontWeight: 700 }}>
                         {playhead.toFixed(2)}s / {activeProject.totalDuration.toFixed(2)}s
@@ -1586,7 +1756,7 @@ export const App: React.FC = () => {
                         value={playhead}
                         onChange={(e) => {
                           setIsPlayingTimeline(false);
-                          setPlayhead(Number(e.target.value));
+                          seekTimeline(Number(e.target.value));
                         }}
                       />
                     </div>
@@ -1832,7 +2002,7 @@ export const App: React.FC = () => {
                     className="ui-button ui-button--primary"
                     onClick={() => handleStartRender(activeProject.id)}
                   >
-                    🚀 Iniciar Renderização MP4 + SRT/ASS
+                    <Rocket size={14} /> Iniciar Renderização MP4 + SRT/ASS
                   </button>
                 </div>
 
@@ -1882,21 +2052,21 @@ export const App: React.FC = () => {
                             href={`/renders/${job.projectId}.mp4`}
                             download={`${job.projectId}.mp4`}
                           >
-                            ⬇ Baixar MP4
+                            <Download size={13} /> Baixar MP4
                           </a>
                           <a
                             className="ui-button ui-button--sm"
                             href={`/renders/${job.projectId}.srt`}
                             download={`${job.projectId}.srt`}
                           >
-                            ⬇ Baixar Legendas .SRT
+                            <Download size={13} /> Baixar Legendas .SRT
                           </a>
                           <a
                             className="ui-button ui-button--sm"
                             href={`/renders/${job.projectId}.ass`}
                             download={`${job.projectId}.ass`}
                           >
-                            ⬇ Baixar Legendas .ASS
+                            <Download size={13} /> Baixar Legendas .ASS
                           </a>
                         </div>
                       )}
@@ -1985,7 +2155,7 @@ export const App: React.FC = () => {
                             setVoicePreviewUrl(res.audioUrl);
                           }}
                         >
-                          🔊 Testar Voz
+                          <SpeakerHigh size={13} /> Testar Voz
                         </button>
                       </div>
                     </label>
@@ -2108,7 +2278,7 @@ export const App: React.FC = () => {
                         showNotice('Configurações salvas em data/settings.json e .env!');
                       }}
                     >
-                      💾 Salvar Configurações (.env)
+                      <FloppyDisk size={14} /> Salvar Configurações (.env)
                     </button>
                   </div>
                 </div>
@@ -2122,8 +2292,15 @@ export const App: React.FC = () => {
                           className={`ui-badge ${
                             item.detected ? 'ui-badge--success' : 'ui-badge--warning'
                           }`}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
                         >
-                          {item.detected ? '✓ Detectado' : 'Opcional / Desligado'}
+                          {item.detected ? (
+                            <>
+                              <Check size={12} /> Detectado
+                            </>
+                          ) : (
+                            'Opcional / Desligado'
+                          )}
                         </span>
                       </div>
                       <strong style={{ fontSize: 16, color: 'var(--motion-strong)' }}>{item.name}</strong>
@@ -2151,8 +2328,9 @@ export const App: React.FC = () => {
                           href={item.repoUrl}
                           target="_blank"
                           rel="noreferrer"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
                         >
-                          Repositório ↗
+                          Repositório <ArrowSquareOut size={12} />
                         </a>
                       </div>
                     </div>
