@@ -32,6 +32,10 @@ export const CharacterPoseSchema = z.enum([
   'typing',
   'thinking',
   'sad',
+  'play-piano',
+  'play-guitar',
+  'conduct',
+  'sing',
 ]).describe(
   'Pose/animação procedural do personagem durante a cena'
 );
@@ -74,6 +78,8 @@ export const StageTemplateIdSchema = z.enum([
   'street-protest',
   'spotlight-close',
   'timeline-3d',
+  'music-studio',
+  'concert-stage',
 ]).describe('Identificador do template de cenário 3D procedural');
 export type StageTemplateId = z.infer<typeof StageTemplateIdSchema>;
 

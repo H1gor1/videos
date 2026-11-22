@@ -5,6 +5,7 @@
   "tone": "técnico-editorial",
   "targetDuration": 12,
   "engine": "freeform",
+  "designKitId": "simulacao-2030",
   "styleId": "cyber-editorial-grid",
   "effectIds": [],
   "status": "scripted",
@@ -50,9 +51,10 @@
     "effectIds": [
       "effect-sparkles"
     ],
-    "variables": []
+    "variables": [],
+    "elementOverrides": {}
   },
   "totalDuration": 12,
-  "createdAt": "2026-11-21T23:22:33.961Z",
-  "updatedAt": "2026-11-21T23:22:33.961Z"
+  "createdAt": "2026-11-22T01:59:31.517Z",
+  "updatedAt": "2026-11-22T01:59:31.517Z"
 }

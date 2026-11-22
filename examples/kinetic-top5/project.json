@@ -5,6 +5,7 @@
   "tone": "dinâmico-viral",
   "targetDuration": 22,
   "engine": "kinetic",
+  "designKitId": "simulacao-2030",
   "styleId": "kinetic-swiss-bold",
   "effectIds": [
     "scanlines"
@@ -55,7 +56,8 @@
       "accentColor": "#f5c518",
       "bgStyle": "dark-grid",
       "transition": "zoom",
-      "sfx": "whoosh"
+      "sfx": "whoosh",
+      "elementOverrides": {}
     },
     {
       "id": "kb-5",
@@ -74,7 +76,8 @@
       "accentColor": "#a855f7",
       "bgStyle": "radial-glow",
       "transition": "whip",
-      "sfx": "pop"
+      "sfx": "pop",
+      "elementOverrides": {}
     },
     {
       "id": "kb-4",
@@ -93,7 +96,8 @@
       "accentColor": "#22c55e",
       "bgStyle": "dark-grid",
       "transition": "whip",
-      "sfx": "pop"
+      "sfx": "pop",
+      "elementOverrides": {}
     },
     {
       "id": "kb-3",
@@ -112,7 +116,8 @@
       "accentColor": "#38bdf8",
       "bgStyle": "neon-cyber",
       "transition": "whip",
-      "sfx": "pop"
+      "sfx": "pop",
+      "elementOverrides": {}
     },
     {
       "id": "kb-2",
@@ -131,7 +136,8 @@
       "accentColor": "#f97316",
       "bgStyle": "dark-grid",
       "transition": "whip",
-      "sfx": "pop"
+      "sfx": "pop",
+      "elementOverrides": {}
     },
     {
       "id": "kb-1",
@@ -143,20 +149,21 @@
       "subheadline": "IMPACTO ESTIMADO NA PRODUTIVIDADE GLOBAL",
       "highlightWord": "AUTÔNOMOS",
       "rankNumber": 1,
-      "statValue": 340,
-      "statPrefix": "+",
-      "statSuffix": "%",
       "items": [
         "Orquestração Multi-Agente via MCP",
         "Código, Vídeo e Dados em Tempo Real"
       ],
+      "statValue": 340,
+      "statPrefix": "+",
+      "statSuffix": "%",
       "accentColor": "#f5c518",
       "bgStyle": "crimson-burst",
       "transition": "zoom",
-      "sfx": "ding"
+      "sfx": "ding",
+      "elementOverrides": {}
     }
   ],
   "totalDuration": 22.4,
-  "createdAt": "2026-11-21T23:22:33.961Z",
-  "updatedAt": "2026-11-21T23:22:33.961Z"
+  "createdAt": "2026-11-22T01:59:31.517Z",
+  "updatedAt": "2026-11-22T01:59:31.517Z"
 }

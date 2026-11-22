@@ -7,6 +7,7 @@
   "seriesId": "simulacao-2030",
   "episodeNumber": 1,
   "engine": "scene3d",
+  "designKitId": "simulacao-2030",
   "styleId": "simulacao-lowpoly-3d",
   "effectIds": [
     "vignette"
@@ -63,9 +64,9 @@
       "overlays": [
         {
           "type": "title",
-          "subtitle": "SIMULAÇÃO 2030 · EP. 1",
           "text": "SIMULAÇÃO 2030",
           "highlightWord": "2030",
+          "subtitle": "SIMULAÇÃO 2030 · EP. 1",
           "position": "top",
           "boxed": false
         },
@@ -81,6 +82,7 @@
           "subtitle": "ECONOMISTA · RECIFE"
         }
       ],
+      "objectOverrides": {},
       "highlightWords": [
         "simulação",
         "presidência"
@@ -117,6 +119,7 @@
           "sublabel": "VOTOS NECESSÁRIOS DE 513"
         }
       ],
+      "objectOverrides": {},
       "highlightWords": [
         "deputado",
         "votos"
@@ -169,6 +172,7 @@
           "boxed": true
         }
       ],
+      "objectOverrides": {},
       "highlightWords": [
         "minério",
         "analgésico",
@@ -209,6 +213,7 @@
       "camera": "pan",
       "transition": "cut",
       "overlays": [],
+      "objectOverrides": {},
       "highlightWords": [
         "alavanca",
         "teto",
@@ -255,6 +260,7 @@
           "variant": "yellow"
         }
       ],
+      "objectOverrides": {},
       "highlightWords": [
         "lítio",
         "nióbio",
@@ -297,6 +303,7 @@
       "camera": "dolly-in",
       "transition": "zoom",
       "overlays": [],
+      "objectOverrides": {},
       "highlightWords": [
         "economia",
         "emprego",
@@ -332,6 +339,7 @@
           "color": "#f5c518"
         }
       ],
+      "objectOverrides": {},
       "highlightWords": [
         "opinião",
         "2030",
@@ -342,6 +350,6 @@
   ],
   "kineticBlocks": [],
   "totalDuration": 28,
-  "createdAt": "2026-11-21T23:22:33.961Z",
-  "updatedAt": "2026-11-21T23:22:33.961Z"
+  "createdAt": "2026-11-22T01:59:31.516Z",
+  "updatedAt": "2026-11-22T01:59:31.516Z"
 }

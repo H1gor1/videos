@@ -47,6 +47,7 @@ import {
 import {
   createFreeformDemoProject,
   createKineticTop5Project,
+  createMusicaAcordeMenorProject,
   createSimulacaoDemoProject,
 } from './examples.ts';
 
@@ -270,6 +271,23 @@ export class VideoService {
     const charsPath = path.join(this.dataDir, 'characters.json');
     if (!existsSync(charsPath)) {
       writeFileSync(charsPath, JSON.stringify(DEFAULT_CHARACTERS, null, 2), 'utf8');
+    } else {
+      try {
+        const existingChars = zArrayParse(CharacterSchema, JSON.parse(readFileSync(charsPath, 'utf8')));
+        const existingIds = new Set(existingChars.map((c) => c.id));
+        let changed = false;
+        for (const seed of DEFAULT_CHARACTERS) {
+          if (!existingIds.has(seed.id)) {
+            existingChars.push(seed);
+            changed = true;
+          }
+        }
+        if (changed) {
+          writeFileSync(charsPath, JSON.stringify(existingChars, null, 2), 'utf8');
+        }
+      } catch {
+        writeFileSync(charsPath, JSON.stringify(DEFAULT_CHARACTERS, null, 2), 'utf8');
+      }
     }
 
     const seriesPath = path.join(this.dataDir, 'series.json');
@@ -343,6 +361,7 @@ export class VideoService {
       this.saveProjectFile(createSimulacaoDemoProject('simulacao-demo'));
       this.saveProjectFile(createKineticTop5Project('kinetic-top5'));
       this.saveProjectFile(createFreeformDemoProject('freeform-demo'));
+      this.saveProjectFile(createMusicaAcordeMenorProject('musica-acorde-menor'));
     }
   }
 
@@ -373,7 +392,22 @@ export class VideoService {
           propsSchema: t.propsSchema,
           exampleProps: t.exampleProps,
         })),
-        poses: ['idle', 'talking', 'waving', 'celebrating', 'pointing', 'walking', 'pulling-lever', 'typing', 'thinking', 'sad'],
+        poses: [
+          'idle',
+          'talking',
+          'waving',
+          'celebrating',
+          'pointing',
+          'walking',
+          'pulling-lever',
+          'typing',
+          'thinking',
+          'sad',
+          'play-piano',
+          'play-guitar',
+          'conduct',
+          'sing',
+        ],
         cameras: ['static', 'dolly-in', 'orbit', 'pan', 'shake', 'close-face'],
         transitions: ['cut', 'whip', 'fade', 'zoom'],
         overlayTypes: ['title', 'badge', 'lower-third', 'role-banner', 'counter', 'watermark', 'progress-bar', 'effect'],
@@ -850,7 +884,10 @@ export class VideoService {
     return ProjectSchema.parse(JSON.parse(readFileSync(pFile, 'utf8')));
   }
 
-  public seedExampleProject(exampleId: 'simulacao-demo' | 'kinetic-top5' | 'freeform-demo', customId?: string): Project {
+  public seedExampleProject(
+    exampleId: 'simulacao-demo' | 'kinetic-top5' | 'freeform-demo' | 'musica-acorde-menor',
+    customId?: string
+  ): Project {
     const targetId = customId || exampleId;
     let project: Project;
     if (exampleId === 'simulacao-demo') {
@@ -859,6 +896,8 @@ export class VideoService {
       project = createKineticTop5Project(targetId);
     } else if (exampleId === 'freeform-demo') {
       project = createFreeformDemoProject(targetId);
+    } else if (exampleId === 'musica-acorde-menor') {
+      project = createMusicaAcordeMenorProject(targetId);
     } else {
       throw new Error(`Exemplo desconhecido: ${exampleId}`);
     }
@@ -898,7 +937,7 @@ export class VideoService {
     if (styleId) {
       const item = this.getLibraryItem(styleId);
       if (item) {
-        stylePrompt = item.contentPreview || item.description;
+        stylePrompt = item.fullContent || item.contentPreview || item.description;
       }
     }
 
@@ -1081,7 +1120,9 @@ export class VideoService {
     const project = this.getProject(projectId);
     const styleItem = this.getLibraryItem(styleId);
     project.styleId = styleId;
-    project.stylePrompt = styleItem ? styleItem.contentPreview || styleItem.description : styleId;
+    project.stylePrompt = styleItem
+      ? styleItem.fullContent || styleItem.contentPreview || styleItem.description
+      : styleId;
 
     if (styleItem?.metadata?.primaryColor) {
       project.captionStyle.highlightColor = String(styleItem.metadata.primaryColor);
@@ -1519,7 +1560,7 @@ export class VideoService {
       : path.join(this.rootDir, item.sourcePath);
     if (existsSync(absPath)) {
       try {
-        fullContent = readFileSync(absPath, 'utf8').slice(0, 24000);
+        fullContent = readFileSync(absPath, 'utf8').slice(0, 100000);
       } catch {
         // Manter preview
       }

@@ -76,6 +76,10 @@ const POSES: CharacterPose[] = [
   'typing',
   'thinking',
   'sad',
+  'play-piano',
+  'play-guitar',
+  'conduct',
+  'sing',
 ];
 
 const CAMERAS: CameraPreset[] = [
@@ -182,7 +186,13 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
 
   const rulerRef = useRef<HTMLDivElement | null>(null);
   const canvasContainerRef = useRef<HTMLDivElement | null>(null);
-  const [canvasFitScale, setCanvasFitScale] = useState<number>(0.68);
+  const [canvasFitScale, setCanvasFitScale] = useState<number>(1);
+  const [zoomMode, setZoomMode] = useState<'fit' | number>('fit');
+  const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isSpacePressed, setIsSpacePressed] = useState<boolean>(false);
+  const [isPanning, setIsPanning] = useState<boolean>(false);
+  const spaceHeldRef = useRef<boolean>(false);
+  const spacePanUsedRef = useRef<boolean>(false);
 
   useEffect(() => {
     const el = canvasContainerRef.current;
@@ -190,8 +200,8 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
     const updateScale = () => {
       const rect = el.getBoundingClientRect();
       if (rect.width <= 0 || rect.height <= 0) return;
-      const fit = Math.min((rect.height - 6) / 604, (rect.width - 12) / 340, 0.86);
-      setCanvasFitScale(Math.max(0.4, Number(fit.toFixed(3))));
+      const fit = Math.min((rect.height - 8) / 640, (rect.width - 16) / 360);
+      setCanvasFitScale(Math.max(0.3, Number(fit.toFixed(4))));
     };
     updateScale();
     if (typeof ResizeObserver !== 'undefined') {
@@ -202,6 +212,31 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
     window.addEventListener('resize', updateScale);
     return () => window.removeEventListener('resize', updateScale);
   }, []);
+
+  const effectiveScale = zoomMode === 'fit' ? canvasFitScale : zoomMode * 2;
+  const displayZoomPct = Math.round(effectiveScale * 50);
+  const canPanPreview = zoomMode !== 'fit' && effectiveScale > canvasFitScale + 0.01;
+
+  useEffect(() => {
+    if (zoomMode === 'fit') {
+      setPanOffset({ x: 0, y: 0 });
+    }
+  }, [zoomMode]);
+
+  useEffect(() => {
+    const el = canvasContainerRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      const curFactor = zoomMode === 'fit' ? canvasFitScale / 2 : zoomMode;
+      const step = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+      const next = Math.max(0.25, Math.min(2.5, Number((curFactor * step).toFixed(3))));
+      setZoomMode(next);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [zoomMode, canvasFitScale]);
 
   const activeDesignKit = useMemo(
     () =>
@@ -711,8 +746,11 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
 
       if (e.code === 'Space') {
         e.preventDefault();
-        setPlaybackRate(1);
-        setIsPlaying((p) => !p);
+        if (!spaceHeldRef.current) {
+          spaceHeldRef.current = true;
+          spacePanUsedRef.current = false;
+          setIsSpacePressed(true);
+        }
       } else if (e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setIsPlaying(false);
@@ -751,8 +789,34 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
       }
     };
 
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && spaceHeldRef.current) {
+        e.preventDefault();
+        spaceHeldRef.current = false;
+        setIsSpacePressed(false);
+        if (!spacePanUsedRef.current) {
+          setPlaybackRate(1);
+          setIsPlaying((p) => !p);
+        }
+        spacePanUsedRef.current = false;
+      }
+    };
+
+    const onWindowBlur = () => {
+      spaceHeldRef.current = false;
+      spacePanUsedRef.current = false;
+      setIsSpacePressed(false);
+      setIsPanning(false);
+    };
+
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', onWindowBlur);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', onWindowBlur);
+    };
   }, [
     editHistory,
     handleSplitAtPlayhead,
@@ -1148,11 +1212,11 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
       style={{
         display: 'flex',
         flexDirection: 'column',
-        height: 'calc(100vh - 108px)',
-        minHeight: 720,
+        height: '100%',
+        minHeight: 0,
         background: 'var(--surface-canvas-bg, #0b0f19)',
         border: '1px solid var(--border-subtle, rgba(255,255,255,0.1))',
-        borderRadius: 14,
+        borderRadius: 0,
         overflow: 'hidden',
       }}
     >
@@ -1525,7 +1589,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
             {leftTab === 'scenes' && (
               <>
                 <div style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8' }}>
-                  11 CENÁRIOS 3D LOW-POLY (CLIQUE PARA APLICAR)
+                  {templates.length} CENÁRIOS 3D LOW-POLY (CLIQUE PARA APLICAR)
                 </div>
                 {templates.map((tpl) => (
                   <button
@@ -1696,7 +1760,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
             overflow: 'hidden',
           }}
         >
-          {/* Barra de status superior do Canvas */}
+          {/* Barra de status superior do Canvas + Controles de Zoom */}
           <div
             style={{
               width: '100%',
@@ -1705,6 +1769,9 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
               alignItems: 'center',
               fontSize: 11,
               color: '#94a3b8',
+              gap: 8,
+              flexWrap: 'wrap',
+              paddingBottom: 4,
             }}
           >
             <span>
@@ -1717,16 +1784,97 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                 {activeDesignKit?.name}
               </strong>
             </span>
+
+            {/* Controles de Zoom do Preview (Ajustar / 50% / 100% / 200% + Ctrl+Scroll + Espaço+Arrastar) */}
+            <div
+              data-testid="nle-preview-zoom-controls"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 3,
+                background: 'rgba(15, 23, 42, 0.85)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: 7,
+                padding: 2,
+              }}
+            >
+              {(
+                [
+                  ['fit', 'Ajustar'],
+                  [0.5, '50%'],
+                  [1, '100%'],
+                  [2, '200%'],
+                ] as Array<['fit' | number, string]>
+              ).map(([modeVal, label]) => {
+                const isAct =
+                  modeVal === 'fit'
+                    ? zoomMode === 'fit'
+                    : typeof zoomMode === 'number' && Math.abs(zoomMode - modeVal) < 0.01;
+                return (
+                  <button
+                    key={String(modeVal)}
+                    type="button"
+                    data-testid={`preview-zoom-${modeVal}`}
+                    onClick={() => setZoomMode(modeVal)}
+                    style={{
+                      padding: '2px 7px',
+                      fontSize: 10,
+                      fontWeight: 800,
+                      borderRadius: 5,
+                      border: 'none',
+                      cursor: 'pointer',
+                      background: isAct ? '#f5c518' : 'transparent',
+                      color: isAct ? '#090d16' : '#cbd5e1',
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+              <span
+                data-testid="preview-zoom-indicator"
+                title="Ctrl+Scroll para zoom · Espaço+Arrastar para mover quando ampliado"
+                style={{
+                  fontFamily: '"IBM Plex Mono", monospace',
+                  fontSize: 10,
+                  color: '#38bdf8',
+                  padding: '0 6px',
+                  fontWeight: 700,
+                }}
+              >
+                {displayZoomPct}%
+              </span>
+              {(panOffset.x !== 0 || panOffset.y !== 0) && (
+                <button
+                  type="button"
+                  onClick={() => setPanOffset({ x: 0, y: 0 })}
+                  title="Centralizar preview"
+                  style={{
+                    padding: '2px 6px',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    borderRadius: 5,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: 'rgba(56, 189, 248, 0.2)',
+                    color: '#38bdf8',
+                  }}
+                >
+                  Centralizar
+                </button>
+              )}
+            </div>
+
             <span>
               Modo:{' '}
               <strong style={{ color: '#38bdf8' }}>
                 {canvasTool === '2d'
-                  ? 'Edição 2D Figma (Arraste, Redimensione, Duplo-Clique p/ Texto)'
+                  ? 'Edição 2D Figma'
                   : canvasTool === '3d'
-                    ? `Gizmo 3D (${gizmoMode.toUpperCase()}) — Clique no objeto ou arraste eixos XYZ`
+                    ? `Gizmo 3D (${gizmoMode.toUpperCase()})`
                     : canvasTool === 'camera'
-                      ? 'Câmera 3D Orbit/Zoom + Keyframe'
-                      : 'Editor de Código HTML/JSON Sincronizado'}
+                      ? 'Câmera 3D Orbit'
+                      : 'Código HTML/JSON'}
               </strong>
             </span>
           </div>
@@ -1734,6 +1882,7 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
           {/* Superfície Principal: Viewport 9:16 ou Painel de Código */}
           <div
             ref={canvasContainerRef}
+            data-testid="nle-preview-stage-area"
             style={{
               flex: 1,
               display: 'flex',
@@ -1742,8 +1891,48 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
               width: '100%',
               minHeight: 0,
               overflow: 'hidden',
+              position: 'relative',
+              padding: '4px 0',
             }}
           >
+            {isSpacePressed && canvasTool !== 'code' && (
+              <div
+                data-testid="nle-preview-pan-overlay"
+                onPointerDown={(e) => {
+                  if (!canPanPreview) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsPanning(true);
+                  const startX = e.clientX;
+                  const startY = e.clientY;
+                  const startPan = { ...panOffset };
+                  const onMove = (ev: PointerEvent) => {
+                    const dx = ev.clientX - startX;
+                    const dy = ev.clientY - startY;
+                    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
+                      spacePanUsedRef.current = true;
+                    }
+                    setPanOffset({ x: startPan.x + dx, y: startPan.y + dy });
+                  };
+                  const onUp = () => {
+                    setIsPanning(false);
+                    window.removeEventListener('pointermove', onMove);
+                    window.removeEventListener('pointerup', onUp);
+                    window.removeEventListener('pointercancel', onUp);
+                  };
+                  window.addEventListener('pointermove', onMove);
+                  window.addEventListener('pointerup', onUp);
+                  window.addEventListener('pointercancel', onUp);
+                }}
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  zIndex: 95,
+                  cursor: canPanPreview ? (isPanning ? 'grabbing' : 'grab') : 'default',
+                  background: 'transparent',
+                }}
+              />
+            )}
             {canvasTool === 'code' ? (
               <div
                 data-testid="advanced-code-editor-panel"
@@ -1817,22 +2006,18 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
               </div>
             ) : project.engine === 'scene3d' && activeScene ? (
               <div
+                className="vs-scaled-viewport"
+                data-testid="nle-preview-scale-wrapper"
+                data-zoom-pct={displayZoomPct}
                 style={{
-                  width: Math.round(340 * canvasFitScale),
-                  height: Math.round(604 * canvasFitScale),
-                  position: 'relative',
+                  width: 360,
+                  height: 640,
                   flexShrink: 0,
+                  transform: `translate(${canPanPreview ? panOffset.x : 0}px, ${canPanPreview ? panOffset.y : 0}px) scale(${effectiveScale})`,
+                  transformOrigin: 'center center',
                 }}
               >
-                <div
-                  style={{
-                    width: 340,
-                    height: 604,
-                    transform: `scale(${canvasFitScale})`,
-                    transformOrigin: 'top left',
-                  }}
-                >
-                  <ThreeViewport
+                <ThreeViewport
                   mode="scene"
                   scene={activeScene}
                   character={activeCharacter}
@@ -1867,23 +2052,24 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                     }, `Mover legendas para Y=${posY}%`)
                   }
                 />
-                </div>
               </div>
             ) : project.engine === 'kinetic' && activeKineticBlock ? (
               /* Preview Visual 2D Interativo para o Engine Kinetic */
               <div
+                className="vs-scaled-viewport"
+                data-testid="nle-preview-scale-wrapper"
+                data-zoom-pct={displayZoomPct}
                 style={{
-                  width: Math.round(340 * canvasFitScale),
-                  height: Math.round(604 * canvasFitScale),
-                  position: 'relative',
+                  width: 360,
+                  height: 640,
                   flexShrink: 0,
+                  transform: `translate(${canPanPreview ? panOffset.x : 0}px, ${canPanPreview ? panOffset.y : 0}px) scale(${effectiveScale})`,
+                  transformOrigin: 'center center',
                 }}
               >
                 <div
                   className="vs-phone-viewport"
                   style={{
-                    transform: `scale(${canvasFitScale})`,
-                    transformOrigin: 'top left',
                     background: activeDesignKit?.palette.background || '#090d16',
                     color: activeDesignKit?.palette.text || '#ffffff',
                     padding: 28,
@@ -1929,18 +2115,20 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
             ) : (
               /* Preview Freeform */
               <div
+                className="vs-scaled-viewport"
+                data-testid="nle-preview-scale-wrapper"
+                data-zoom-pct={displayZoomPct}
                 style={{
-                  width: Math.round(340 * canvasFitScale),
-                  height: Math.round(604 * canvasFitScale),
-                  position: 'relative',
+                  width: 360,
+                  height: 640,
                   flexShrink: 0,
+                  transform: `translate(${canPanPreview ? panOffset.x : 0}px, ${canPanPreview ? panOffset.y : 0}px) scale(${effectiveScale})`,
+                  transformOrigin: 'center center',
                 }}
               >
                 <div
                   className="vs-phone-viewport"
                   style={{
-                    transform: `scale(${canvasFitScale})`,
-                    transformOrigin: 'top left',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -1949,7 +2137,16 @@ export const NleEditorWorkspace: React.FC<NleEditorWorkspaceProps> = ({
                   }}
                 >
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: 900, color: '#f5c518' }}>{project.title}</div>
+                    <div
+                      style={{
+                        fontFamily: activeDesignKit?.typography.headingFont || 'Anton',
+                        fontSize: 20,
+                        fontWeight: 900,
+                        color: '#f5c518',
+                      }}
+                    >
+                      {project.title}
+                    </div>
                     <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 6 }}>
                       Use a aba <code>{'</>'} Código HTML/JSON</code> acima para editar o HTML HyperFrames ao vivo.
                     </p>

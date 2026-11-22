@@ -138,6 +138,7 @@ export function defaultOverlayRect720(
 export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const [fontsReady, setFontsReady] = useState<boolean>(false);
   const [orbit, setOrbit] = useState({ yaw: 0.25, pitch: 0.12, distance: 4.8 });
   const dragRef = useRef<{ active: boolean; startX: number; startY: number; yaw0: number; pitch0: number }>({
     active: false,
@@ -175,6 +176,30 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
 
   const stageControllerRef = useRef<any>(null);
 
+  // Aguarda document.fonts.ready (Anton, Bebas Neue, Inter) antes de desenhar/medir texto em Canvas 2D/3D
+  useEffect(() => {
+    let cancelled = false;
+    const waitFonts = async () => {
+      try {
+        if (typeof document !== 'undefined' && document.fonts) {
+          await Promise.allSettled([
+            document.fonts.load('400 36px "Anton"'),
+            document.fonts.load('900 36px "Anton"'),
+            document.fonts.load('400 36px "Bebas Neue"'),
+            document.fonts.load('800 18px "Inter"'),
+          ]);
+          await document.fonts.ready;
+        }
+      } finally {
+        if (!cancelled) setFontsReady(true);
+      }
+    };
+    void waitFonts();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // ==========================================================================
   // MODO 1: PREVIEW 3D AO VIVO + RAYCAST + TRANSFORMCONTROLS + ORBITCONTROLS
   // ==========================================================================
@@ -184,7 +209,7 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
     if (!canvas) return;
 
     const engine = createScene3DEngine(THREE);
-    const controller = engine.mountScene3DCanvas(canvas, VIEW_W, VIEW_H, [
+    const controller = engine.mountScene3DCanvas(canvas, COMP_W, COMP_H, [
       {
         id: props.scene.id,
         startTime: 0,
@@ -466,6 +491,7 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
     props.mode === 'scene' ? props.canvasTool : '2d',
     props.mode === 'scene' ? props.gizmoMode : 'translate',
     props.mode === 'scene' ? props.selectedObject3DId : null,
+    fontsReady,
   ]);
 
   // ==========================================================================
@@ -1190,8 +1216,8 @@ export const ThreeViewport: React.FC<ThreeViewportProps> = (props) => {
     >
       <canvas
         ref={canvasRef}
-        width={VIEW_W}
-        height={VIEW_H}
+        width={COMP_W}
+        height={COMP_H}
         onClick={handleCanvasClick3D}
         style={{ width: '100%', height: '100%', display: 'block' }}
       />

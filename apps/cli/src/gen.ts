@@ -4,6 +4,7 @@ import {
   WORKSPACE_ROOT,
   createFreeformDemoProject,
   createKineticTop5Project,
+  createMusicaAcordeMenorProject,
   createSimulacaoDemoProject,
   getVideoService,
 } from '@kinema/core';
@@ -17,7 +18,7 @@ async function main() {
 
   const exampleId =
     exIdx >= 0 && args[exIdx + 1]
-      ? (args[exIdx + 1] as 'simulacao-demo' | 'kinetic-top5' | 'freeform-demo')
+      ? (args[exIdx + 1] as 'simulacao-demo' | 'kinetic-top5' | 'freeform-demo' | 'musica-acorde-menor')
       : !projIdx || projIdx < 0
         ? 'simulacao-demo'
         : undefined;
@@ -31,6 +32,7 @@ async function main() {
     'simulacao-demo': createSimulacaoDemoProject('simulacao-demo'),
     'kinetic-top5': createKineticTop5Project('kinetic-top5'),
     'freeform-demo': createFreeformDemoProject('freeform-demo'),
+    'musica-acorde-menor': createMusicaAcordeMenorProject('musica-acorde-menor'),
   };
   for (const [exName, exProj] of Object.entries(examplesMap)) {
     const exDir = path.join(WORKSPACE_ROOT, 'examples', exName);

@@ -74,6 +74,10 @@ const POSES: CharacterPose[] = [
   'typing',
   'thinking',
   'sad',
+  'play-piano',
+  'play-guitar',
+  'conduct',
+  'sing',
 ];
 
 const CAMERAS: CameraPreset[] = [
@@ -679,7 +683,7 @@ export const App: React.FC = () => {
         </nav>
 
         {/* CONTEÚDO DA TELA ATIVA */}
-        <main className={`vs-content ${screen === 'characters' ? 'no-pad' : ''}`}>
+        <main className={`vs-content ${screen === 'characters' || screen === 'editor' ? 'no-pad' : ''}`}>
           {/* ================================================================
               TELA 1: DASHBOARD DE PROJETOS E SÉRIES
               ================================================================ */}

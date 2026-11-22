@@ -1,0 +1,292 @@
+{
+  "id": "musica-acorde-menor",
+  "title": "POR QUE O ACORDE MENOR SOA TRISTE?",
+  "topic": "Teoria musical prática: como baixar a terça em meio tom transforma Dó maior em Dó menor (C–E–G para C–E♭–G).",
+  "tone": "didático-musical",
+  "targetDuration": 20,
+  "engine": "scene3d",
+  "designKitId": "simulacao-2030",
+  "styleId": "simulacao-lowpoly-3d",
+  "effectIds": [],
+  "status": "scripted",
+  "voice": {
+    "provider": "edge",
+    "voiceId": "pt-BR-AntonioNeural",
+    "rate": 1.15,
+    "pitch": "+0Hz"
+  },
+  "captionStyle": {
+    "enabled": true,
+    "style": "highlight-yellow",
+    "wordsPerGroup": 3,
+    "positionY": 83,
+    "fontSize": 32,
+    "highlightColor": "#f5c518",
+    "textColor": "#ffffff",
+    "burnIn": true
+  },
+  "renderSettings": {
+    "width": 720,
+    "height": 1280,
+    "fps": 30,
+    "crf": 21,
+    "workers": 2,
+    "renderer": "hyperframes",
+    "embedCaptions": true,
+    "musicTrack": "upbeat-simulation",
+    "musicVolume": 0.14,
+    "duckingThreshold": 0.03,
+    "sfxVolume": 0.28
+  },
+  "scenes": [
+    {
+      "id": "scene-1-gancho-piano",
+      "order": 0,
+      "narration": "Por que o acorde menor soa triste? Ouça Dó, Mi e Sol!",
+      "duration": 4,
+      "template": "music-studio",
+      "templateProps": {
+        "boardText": "DÓ MAIOR\nC · E · G",
+        "highlightKeys": [
+          "C4",
+          "E4",
+          "G4"
+        ],
+        "keyframes": [
+          {
+            "t": 0,
+            "keys": [
+              "C4"
+            ],
+            "boardText": "NOTA DÓ (C)"
+          },
+          {
+            "t": 1,
+            "keys": [
+              "C4",
+              "E4"
+            ],
+            "boardText": "DÓ + MI (C · E)"
+          },
+          {
+            "t": 2,
+            "keys": [
+              "C4",
+              "E4",
+              "G4"
+            ],
+            "boardText": "DÓ MAIOR\nC · E · G"
+          }
+        ],
+        "highlightColor": "#f5c518",
+        "wallColor": "#1e1b4b"
+      },
+      "characterId": "prof-caio",
+      "secondaryCharacterIds": [],
+      "pose": "play-piano",
+      "camera": "dolly-in",
+      "transition": "cut",
+      "overlays": [
+        {
+          "type": "title",
+          "text": "POR QUE ACORDE MENOR SOA TRISTE?",
+          "highlightWord": "TRISTE?",
+          "subtitle": "AULA DE HARMONIA · TEORIA",
+          "position": "top",
+          "boxed": false
+        },
+        {
+          "type": "badge",
+          "text": "NA PRÁTICA AO VIVO",
+          "icon": "⚠",
+          "color": "#f5c518"
+        },
+        {
+          "type": "lower-third",
+          "name": "PROF. CAIO HARMONIA",
+          "subtitle": "PROFESSOR DE MÚSICA · BH"
+        }
+      ],
+      "objectOverrides": {},
+      "highlightWords": [
+        "triste",
+        "Dó",
+        "Mi",
+        "Sol"
+      ],
+      "sfx": "ding"
+    },
+    {
+      "id": "scene-2-terca-bemol",
+      "order": 1,
+      "narration": "Agora desça o Mi meio tom para Mi bemol!",
+      "duration": 4,
+      "template": "music-studio",
+      "templateProps": {
+        "boardText": "DÓ MAIOR\nC · E · G",
+        "highlightKeys": [
+          "C4",
+          "E4",
+          "G4"
+        ],
+        "keyframes": [
+          {
+            "t": 0,
+            "keys": [
+              "C4",
+              "E4",
+              "G4"
+            ],
+            "boardText": "DÓ MAIOR\nC · E · G"
+          },
+          {
+            "t": 1.7,
+            "keys": [
+              "C4",
+              "Eb4",
+              "G4"
+            ],
+            "boardText": "DÓ MENOR\nC · E♭ · G"
+          }
+        ],
+        "highlightColor": "#38bdf8",
+        "wallColor": "#172554"
+      },
+      "characterId": "prof-caio",
+      "secondaryCharacterIds": [],
+      "pose": "play-piano",
+      "camera": "pan",
+      "transition": "whip",
+      "overlays": [
+        {
+          "type": "role-banner",
+          "title": "TERÇA MAIOR → TERÇA MENOR",
+          "subtitle": "E4 DESCE MEIO TOM PARA E♭4",
+          "variant": "yellow"
+        }
+      ],
+      "objectOverrides": {},
+      "highlightWords": [
+        "Mi",
+        "bemol"
+      ],
+      "sfx": "whoosh"
+    },
+    {
+      "id": "scene-3-palco-guitarra",
+      "order": 2,
+      "narration": "Esse único semitom muda toda a emoção na hora.",
+      "duration": 3.8,
+      "template": "concert-stage",
+      "templateProps": {
+        "stageTitle": "-1 SEMITOM",
+        "stageSubtitle": "MUDA TODA A EMOÇÃO",
+        "accentColor": "#38bdf8",
+        "secondaryLightColor": "#f5c518",
+        "crowdCount": 18
+      },
+      "characterId": "prof-caio",
+      "secondaryCharacterIds": [],
+      "pose": "play-guitar",
+      "camera": "orbit",
+      "transition": "cut",
+      "overlays": [],
+      "objectOverrides": {},
+      "highlightWords": [
+        "semitom",
+        "emoção"
+      ],
+      "sfx": "ding"
+    },
+    {
+      "id": "scene-4-regencia-tensao",
+      "order": 3,
+      "narration": "O intervalo fechado traz tensão, drama e melancolia.",
+      "duration": 3.8,
+      "template": "concert-stage",
+      "templateProps": {
+        "stageTitle": "C · E♭ · G",
+        "stageSubtitle": "MELANCOLIA E DRAMA",
+        "accentColor": "#ec4899",
+        "secondaryLightColor": "#38bdf8",
+        "crowdCount": 20
+      },
+      "characterId": "prof-caio",
+      "secondaryCharacterIds": [],
+      "pose": "conduct",
+      "camera": "dolly-in",
+      "transition": "whip",
+      "overlays": [
+        {
+          "type": "counter",
+          "label": "INTERVALO DA TERÇA MENOR",
+          "from": 0,
+          "to": 3,
+          "prefix": "",
+          "suffix": " SEMITONS",
+          "sublabel": "CONTRA 4 SEMITONS NO MAIOR"
+        }
+      ],
+      "objectOverrides": {},
+      "highlightWords": [
+        "tensão",
+        "drama",
+        "melancolia"
+      ],
+      "sfx": "whoosh"
+    },
+    {
+      "id": "scene-5-final-estudio",
+      "order": 4,
+      "narration": "E aí, prefere acorde maior ou menor? Comenta!",
+      "duration": 3.8,
+      "template": "music-studio",
+      "templateProps": {
+        "boardText": "MAIOR vs MENOR\nCOMENTA AÍ!",
+        "highlightKeys": [
+          "C4",
+          "Eb4",
+          "G4"
+        ],
+        "keyframes": [
+          {
+            "t": 0,
+            "keys": [
+              "C4",
+              "E4",
+              "G4"
+            ],
+            "boardText": "DÓ MAIOR\nALEGRE"
+          },
+          {
+            "t": 1.6,
+            "keys": [
+              "C4",
+              "Eb4",
+              "G4"
+            ],
+            "boardText": "DÓ MENOR\nTRISTE"
+          }
+        ],
+        "highlightColor": "#f5c518",
+        "wallColor": "#1e1b4b"
+      },
+      "characterId": "prof-caio",
+      "secondaryCharacterIds": [],
+      "pose": "sing",
+      "camera": "close-face",
+      "transition": "zoom",
+      "overlays": [],
+      "objectOverrides": {},
+      "highlightWords": [
+        "maior",
+        "menor"
+      ],
+      "sfx": "cheer"
+    }
+  ],
+  "kineticBlocks": [],
+  "totalDuration": 20,
+  "createdAt": "2026-11-22T01:59:31.517Z",
+  "updatedAt": "2026-11-22T01:59:31.517Z"
+}

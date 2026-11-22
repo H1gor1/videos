@@ -635,6 +635,62 @@ export function createScene3DEngine(THREE: any) {
       rightArmPivot.add(micGroup);
     }
 
+    // Props condicionais de pose musical (visíveis apenas nas poses sing / play-guitar / conduct)
+    const poseMicGroup = new THREE.Group();
+    if (!c.accessories.includes('microphone')) {
+      const handle = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.032, 0.028, 0.26, 10),
+        new THREE.MeshStandardMaterial({ color: '#1f2937', roughness: 0.55 })
+      );
+      const capsule = new THREE.Mesh(
+        new THREE.SphereGeometry(0.07, 12, 12),
+        new THREE.MeshStandardMaterial({ color: '#cbd5e1', metalness: 0.45, roughness: 0.35 })
+      );
+      capsule.position.y = 0.15;
+      poseMicGroup.add(handle, capsule);
+      poseMicGroup.position.set(0, -0.64, 0.16);
+      poseMicGroup.rotation.x = Math.PI / 3;
+      poseMicGroup.visible = false;
+      rightArmPivot.add(poseMicGroup);
+    }
+
+    const poseBatonGroup = new THREE.Group();
+    const batonStick = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.012, 0.008, 0.52, 8),
+      new THREE.MeshStandardMaterial({ color: '#f8fafc', roughness: 0.3 })
+    );
+    batonStick.position.set(0, -0.78, 0.24);
+    batonStick.rotation.x = Math.PI / 2.2;
+    poseBatonGroup.add(batonStick);
+    poseBatonGroup.visible = false;
+    rightArmPivot.add(poseBatonGroup);
+
+    const poseGuitarGroup = new THREE.Group();
+    const gBody = new THREE.Mesh(
+      new RoundedBoxGeometry(0.42, 0.54, 0.1, 3, 0.04),
+      new THREE.MeshStandardMaterial({ color: '#dc2626', roughness: 0.42, metalness: 0.15 })
+    );
+    const gPickguard = new THREE.Mesh(
+      new RoundedBoxGeometry(0.24, 0.3, 0.11, 2, 0.02),
+      new THREE.MeshStandardMaterial({ color: '#f8fafc', roughness: 0.5 })
+    );
+    gPickguard.position.set(0.04, -0.04, 0.01);
+    const gNeck = new THREE.Mesh(
+      new THREE.BoxGeometry(0.11, 0.78, 0.06),
+      new THREE.MeshStandardMaterial({ color: '#78350f', roughness: 0.65 })
+    );
+    gNeck.position.set(0, 0.56, 0.01);
+    const gHead = new THREE.Mesh(
+      new RoundedBoxGeometry(0.16, 0.2, 0.07, 2, 0.02),
+      new THREE.MeshStandardMaterial({ color: '#111827', roughness: 0.5 })
+    );
+    gHead.position.set(0, 0.98, 0.01);
+    poseGuitarGroup.add(gBody, gPickguard, gNeck, gHead);
+    poseGuitarGroup.position.set(-0.04, -0.06, 0.34);
+    poseGuitarGroup.rotation.z = 1.05;
+    poseGuitarGroup.visible = false;
+    torsoGroup.add(poseGuitarGroup);
+
     root.add(rightArmPivot);
 
     // Cabeça Chibi grande com cantos bem arredondados (y = 1.66)
@@ -951,6 +1007,9 @@ export function createScene3DEngine(THREE: any) {
       mouth,
       browL,
       browR,
+      poseMicGroup,
+      poseBatonGroup,
+      poseGuitarGroup,
     };
 
     return root;
@@ -971,13 +1030,16 @@ export function createScene3DEngine(THREE: any) {
     u.leftLegPivot.rotation.set(0, 0, 0);
     u.rightLegPivot.rotation.set(0, 0, 0);
     u.mouth.scale.set(1, 0.65, 1);
+    if (u.poseMicGroup) u.poseMicGroup.visible = false;
+    if (u.poseBatonGroup) u.poseBatonGroup.visible = false;
+    if (u.poseGuitarGroup) u.poseGuitarGroup.visible = false;
 
     const breathe = Math.sin(t * 2.6) * 0.022;
     u.torsoGroup.position.y = 1.15 + breathe;
     u.headPivot.position.y = 1.66 + breathe * 1.2;
 
-    // Lip-sync procedural quando falando/comemorando/apontando
-    if (['talking', 'celebrating', 'pointing', 'waving'].includes(pose)) {
+    // Lip-sync procedural quando falando/comemorando/apontando/cantando
+    if (['talking', 'celebrating', 'pointing', 'waving', 'play-piano', 'conduct'].includes(pose)) {
       const jaw = 0.55 + Math.abs(Math.sin(t * 11.5)) * 0.75 + Math.abs(Math.cos(t * 7.3)) * 0.3;
       u.mouth.scale.set(1, jaw, 1);
     }
@@ -1056,6 +1118,46 @@ export function createScene3DEngine(THREE: any) {
         u.torsoGroup.rotation.x = 0.1;
         u.leftArmPivot.rotation.z = 0.05;
         u.rightArmPivot.rotation.z = -0.05;
+        break;
+
+      case 'play-piano':
+        u.leftArmPivot.rotation.x = -1.18 + Math.sin(t * 9.5) * 0.24;
+        u.leftArmPivot.rotation.z = 0.14 + Math.sin(t * 4.5) * 0.12;
+        u.rightArmPivot.rotation.x = -1.18 + Math.cos(t * 9.5) * 0.24;
+        u.rightArmPivot.rotation.z = -0.14 - Math.cos(t * 4.5) * 0.12;
+        u.headPivot.rotation.x = 0.12 + Math.sin(t * 4.7) * 0.05;
+        u.headPivot.rotation.y = Math.sin(t * 2.2) * 0.12;
+        break;
+
+      case 'play-guitar':
+        if (u.poseGuitarGroup) u.poseGuitarGroup.visible = true;
+        u.leftArmPivot.rotation.x = -0.92;
+        u.leftArmPivot.rotation.z = 0.42 + Math.sin(t * 5.0) * 0.06;
+        u.rightArmPivot.rotation.x = -0.88 + Math.sin(t * 15.0) * 0.22;
+        u.rightArmPivot.rotation.z = 0.26;
+        u.torsoGroup.rotation.z = Math.sin(t * 3.5) * 0.05;
+        u.headPivot.rotation.x = 0.08 + Math.sin(t * 7.0) * 0.06;
+        break;
+
+      case 'conduct':
+        if (u.poseBatonGroup) u.poseBatonGroup.visible = true;
+        u.rightArmPivot.rotation.x = -1.45 + Math.cos(t * 5.2) * 0.38;
+        u.rightArmPivot.rotation.z = -0.25 + Math.sin(t * 5.2) * 0.42;
+        u.leftArmPivot.rotation.x = -1.15 + Math.sin(t * 2.6) * 0.28;
+        u.leftArmPivot.rotation.z = 0.32 + Math.cos(t * 2.6) * 0.2;
+        u.headPivot.rotation.z = Math.sin(t * 2.6) * 0.09;
+        u.headPivot.rotation.y = Math.sin(t * 1.8) * 0.15;
+        break;
+
+      case 'sing':
+        if (u.poseMicGroup) u.poseMicGroup.visible = true;
+        u.rightArmPivot.rotation.x = -1.52 + Math.sin(t * 4.0) * 0.06;
+        u.rightArmPivot.rotation.z = 0.34;
+        u.leftArmPivot.rotation.x = -0.58 + Math.sin(t * 3.8) * 0.32;
+        u.leftArmPivot.rotation.z = -0.22;
+        u.headPivot.rotation.y = Math.sin(t * 2.2) * 0.14;
+        u.headPivot.rotation.x = -0.06 + Math.sin(t * 4.4) * 0.05;
+        u.mouth.scale.set(1.08, 0.8 + Math.abs(Math.sin(t * 9.0)) * 0.95, 1);
         break;
     }
   }
@@ -1997,7 +2099,555 @@ export function createScene3DEngine(THREE: any) {
       scene.add(leftMember, rightMember);
     }
 
-    // 11. SPOTLIGHT CLOSE / CARD DE REDE SOCIAL
+    // 11. MUSIC STUDIO (Piano 2 oitavas com highlightKeys/keyframes, Monitores, Microfone, Painel)
+    else if (config.template === 'music-studio') {
+      scene.background = new THREE.Color(props.wallColor || '#1e1b4b');
+      const floor = markIgnoreFraming(
+        new THREE.Mesh(
+          new THREE.PlaneGeometry(22, 24),
+          new THREE.MeshStandardMaterial({ color: '#452715', roughness: 0.78 })
+        )
+      );
+      floor.rotation.x = -Math.PI / 2;
+      floor.receiveShadow = true;
+      scene.add(floor);
+
+      const backWall = markIgnoreFraming(
+        new THREE.Mesh(
+          new THREE.BoxGeometry(20, 14, 0.4),
+          new THREE.MeshStandardMaterial({ color: props.wallColor || '#1e1b4b', roughness: 0.85 })
+        )
+      );
+      backWall.position.set(0, 6, -2.2);
+      scene.add(backWall);
+
+      // Painéis acústicos decorativos na parede
+      for (const px of [-2.0, -1.2, 1.2, 2.0]) {
+        const foam = markIgnoreFraming(
+          new THREE.Mesh(
+            new RoundedBoxGeometry(0.62, 1.5, 0.08, 2, 0.02),
+            new THREE.MeshStandardMaterial({ color: '#312e81', roughness: 0.92 })
+          )
+        );
+        foam.position.set(px, 2.2, -1.96);
+        scene.add(foam);
+      }
+
+      // Painel/Quadro didático superior com boardText
+      const initialBoardText = String(props.boardText || 'DÓ MAIOR\nC · E · G');
+      const boardTexCache = new Map<string, any>();
+      const getBoardTex = (txt: string) => {
+        if (!boardTexCache.has(txt)) {
+          boardTexCache.set(
+            txt,
+            createTextTexture(txt, {
+              width: 960,
+              height: 320,
+              bgColor: '#0f172a',
+              textColor: '#f8fafc',
+              borderColor: props.highlightColor || '#f5c518',
+              borderWidth: 8,
+              fontSize: 54,
+            })
+          );
+        }
+        return boardTexCache.get(txt);
+      };
+      const boardFrontMat = new THREE.MeshStandardMaterial({
+        map: getBoardTex(initialBoardText),
+        roughness: 0.5,
+      });
+      const boardSideMat = new THREE.MeshStandardMaterial({ color: '#0f172a', roughness: 0.7 });
+      const boardMesh = new THREE.Mesh(new THREE.BoxGeometry(2.55, 1.0, 0.1), [
+        boardSideMat,
+        boardSideMat,
+        boardSideMat,
+        boardSideMat,
+        boardFrontMat,
+        boardSideMat,
+      ]);
+      boardMesh.position.set(0, 3.02, -1.1);
+      boardMesh.castShadow = true;
+      boardMesh.userData = { objectId: 'studio-board', objectLabel: 'Painel do Estúdio' };
+      scene.add(boardMesh);
+
+      // Caixas de som monitoras (esquerda e direita)
+      for (const [side, label] of [
+        [-1.38, 'Monitor Esquerdo'],
+        [1.38, 'Monitor Direito'],
+      ] as Array<[number, string]>) {
+        const spkGroup = new THREE.Group();
+        const standPole = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.04, 0.055, 1.25, 10),
+          new THREE.MeshStandardMaterial({ color: '#111827', metalness: 0.4, roughness: 0.5 })
+        );
+        standPole.position.y = 0.625;
+        const standBase = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.24, 0.26, 0.06, 14),
+          new THREE.MeshStandardMaterial({ color: '#0f172a', roughness: 0.6 })
+        );
+        standBase.position.y = 0.03;
+        const box = new THREE.Mesh(
+          new RoundedBoxGeometry(0.48, 0.68, 0.42, 3, 0.04),
+          new THREE.MeshStandardMaterial({ color: '#1e293b', roughness: 0.65 })
+        );
+        box.position.y = 1.56;
+        box.castShadow = true;
+        const woofer = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.15, 0.15, 0.04, 20),
+          new THREE.MeshStandardMaterial({ color: '#f5c518', roughness: 0.4 })
+        );
+        woofer.rotation.x = Math.PI / 2;
+        woofer.position.set(0, 1.44, 0.21);
+        const wooferCore = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.08, 0.08, 0.05, 16),
+          new THREE.MeshStandardMaterial({ color: '#0f172a', roughness: 0.5 })
+        );
+        wooferCore.rotation.x = Math.PI / 2;
+        wooferCore.position.set(0, 1.44, 0.215);
+        const tweeter = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.065, 0.065, 0.04, 16),
+          new THREE.MeshStandardMaterial({ color: '#38bdf8', roughness: 0.35 })
+        );
+        tweeter.rotation.x = Math.PI / 2;
+        tweeter.position.set(0, 1.74, 0.21);
+        spkGroup.add(standPole, standBase, box, woofer, wooferCore, tweeter);
+        spkGroup.position.set(side, 0, -0.35);
+        spkGroup.rotation.y = side < 0 ? 0.26 : -0.26;
+        spkGroup.userData = {
+          objectId: side < 0 ? 'studio-speaker-left' : 'studio-speaker-right',
+          objectLabel: label,
+        };
+        scene.add(spkGroup);
+      }
+
+      // Microfone com pedestal à esquerda
+      const micStandGroup = new THREE.Group();
+      const mBase = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.22, 0.24, 0.05, 14),
+        new THREE.MeshStandardMaterial({ color: '#0f172a', roughness: 0.5 })
+      );
+      mBase.position.y = 0.025;
+      const mPole = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.026, 0.032, 1.55, 10),
+        new THREE.MeshStandardMaterial({ color: '#94a3b8', metalness: 0.65, roughness: 0.3 })
+      );
+      mPole.position.y = 0.8;
+      const mBoom = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.018, 0.018, 0.58, 8),
+        new THREE.MeshStandardMaterial({ color: '#cbd5e1', metalness: 0.65, roughness: 0.3 })
+      );
+      mBoom.position.set(0.18, 1.62, 0.12);
+      mBoom.rotation.z = -0.95;
+      mBoom.rotation.y = 0.35;
+      const mCapsule = new THREE.Mesh(
+        new RoundedBoxGeometry(0.09, 0.16, 0.09, 3, 0.035),
+        new THREE.MeshStandardMaterial({ color: '#38bdf8', metalness: 0.45, roughness: 0.35 })
+      );
+      mCapsule.position.set(0.38, 1.72, 0.2);
+      micStandGroup.add(mBase, mPole, mBoom, mCapsule);
+      micStandGroup.position.set(-1.02, 0, 0.36);
+      micStandGroup.userData = { objectId: 'studio-mic-stand', objectLabel: 'Microfone com Pedestal' };
+      scene.add(micStandGroup);
+
+      // Teclado / Piano 2 oitavas (C4..B5: 14 teclas brancas + 10 teclas pretas)
+      const pianoGroup = new THREE.Group();
+      const standLeft = new THREE.Mesh(
+        new THREE.BoxGeometry(0.08, 0.92, 0.52),
+        new THREE.MeshStandardMaterial({ color: '#111827', roughness: 0.55 })
+      );
+      standLeft.position.set(-0.92, 0.46, 0);
+      const standRight = standLeft.clone();
+      standRight.position.x = 0.92;
+      const standBar = new THREE.Mesh(
+        new THREE.BoxGeometry(1.92, 0.07, 0.08),
+        new THREE.MeshStandardMaterial({ color: '#334155', roughness: 0.5 })
+      );
+      standBar.position.set(0, 0.45, 0);
+      pianoGroup.add(standLeft, standRight, standBar);
+
+      // Mesa do teclado inclinada para ótima visibilidade das teclas na câmera frontal 9:16
+      const keybedGroup = new THREE.Group();
+      keybedGroup.position.set(0, 0.94, 0.02);
+      keybedGroup.rotation.x = 0.34;
+
+      const chassis = new THREE.Mesh(
+        new RoundedBoxGeometry(2.44, 0.14, 0.72, 3, 0.03),
+        new THREE.MeshStandardMaterial({ color: '#0f172a', roughness: 0.45, metalness: 0.25 })
+      );
+      chassis.castShadow = true;
+      chassis.receiveShadow = true;
+      keybedGroup.add(chassis);
+
+      const normalizeNote = (raw: string): string => {
+        const cleaned = String(raw || '')
+          .trim()
+          .replace(/♭/g, 'b')
+          .replace(/♯/g, '#');
+        const m = cleaned.match(/^([A-Ga-g])([#b]?)(-?\d)$/);
+        if (!m) return cleaned.toUpperCase();
+        const letter = m[1].toUpperCase();
+        const acc = m[2];
+        const oct = Number(m[3]);
+        const key = `${letter}${acc}`;
+        const enharmonic: Record<string, { name: string; octDelta?: number }> = {
+          DB: { name: 'C#' },
+          EB: { name: 'D#' },
+          FB: { name: 'E' },
+          'E#': { name: 'F' },
+          GB: { name: 'F#' },
+          AB: { name: 'G#' },
+          BB: { name: 'A#' },
+          CB: { name: 'B', octDelta: -1 },
+          'B#': { name: 'C', octDelta: 1 },
+        };
+        const mapped = enharmonic[key.toUpperCase()];
+        if (mapped) {
+          return `${mapped.name}${oct + (mapped.octDelta || 0)}`;
+        }
+        return `${key}${oct}`;
+      };
+
+      const whiteNotes = [
+        'C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4',
+        'C5', 'D5', 'E5', 'F5', 'G5', 'A5', 'B5',
+      ];
+      const blackNoteOffsets: Array<{ note: string; afterWhiteIdx: number }> = [
+        { note: 'C#4', afterWhiteIdx: 0 },
+        { note: 'D#4', afterWhiteIdx: 1 },
+        { note: 'F#4', afterWhiteIdx: 3 },
+        { note: 'G#4', afterWhiteIdx: 4 },
+        { note: 'A#4', afterWhiteIdx: 5 },
+        { note: 'C#5', afterWhiteIdx: 7 },
+        { note: 'D#5', afterWhiteIdx: 8 },
+        { note: 'F#5', afterWhiteIdx: 10 },
+        { note: 'G#5', afterWhiteIdx: 11 },
+        { note: 'A#5', afterWhiteIdx: 12 },
+      ];
+
+      const whiteStep = 0.164;
+      const whiteStartX = -((whiteNotes.length - 1) * whiteStep) / 2;
+      const keyEntries = new Map<
+        string,
+        { mesh: any; mat: any; baseColor: string; baseY: number; indicator: any }
+      >();
+
+      whiteNotes.forEach((note, idx) => {
+        const x = whiteStartX + idx * whiteStep;
+        const mat = new THREE.MeshStandardMaterial({
+          color: '#f8fafc',
+          emissive: '#000000',
+          emissiveIntensity: 0,
+          roughness: 0.35,
+        });
+        const mesh = new THREE.Mesh(new RoundedBoxGeometry(0.148, 0.06, 0.56, 2, 0.012), mat);
+        mesh.position.set(x, 0.085, 0.05);
+        mesh.castShadow = true;
+        keybedGroup.add(mesh);
+
+        const indicator = new THREE.Mesh(
+          new THREE.SphereGeometry(0.038, 12, 10),
+          new THREE.MeshBasicMaterial({ color: props.highlightColor || '#f5c518' })
+        );
+        indicator.position.set(x, 0.145, 0.24);
+        indicator.visible = false;
+        keybedGroup.add(indicator);
+
+        keyEntries.set(note, { mesh, mat, baseColor: '#f8fafc', baseY: 0.085, indicator });
+      });
+
+      blackNoteOffsets.forEach(({ note, afterWhiteIdx }) => {
+        const x = whiteStartX + (afterWhiteIdx + 0.5) * whiteStep;
+        const mat = new THREE.MeshStandardMaterial({
+          color: '#111827',
+          emissive: '#000000',
+          emissiveIntensity: 0,
+          roughness: 0.3,
+        });
+        const mesh = new THREE.Mesh(new RoundedBoxGeometry(0.092, 0.075, 0.34, 2, 0.01), mat);
+        mesh.position.set(x, 0.125, -0.06);
+        mesh.castShadow = true;
+        keybedGroup.add(mesh);
+
+        const indicator = new THREE.Mesh(
+          new THREE.SphereGeometry(0.036, 12, 10),
+          new THREE.MeshBasicMaterial({ color: props.highlightColor || '#f5c518' })
+        );
+        indicator.position.set(x, 0.185, -0.02);
+        indicator.visible = false;
+        keybedGroup.add(indicator);
+
+        keyEntries.set(note, { mesh, mat, baseColor: '#111827', baseY: 0.125, indicator });
+      });
+
+      pianoGroup.add(keybedGroup);
+      pianoGroup.position.set(0, 0, 0.68);
+      pianoGroup.userData = { objectId: 'studio-keyboard', objectLabel: 'Teclado Piano 2 Oitavas' };
+      scene.add(pianoGroup);
+
+      // Personagem atrás do piano
+      mainChar.position.set(0, 0, -0.06);
+      mainChar.scale.setScalar(0.84);
+
+      const keyframes: Array<{ t: number; keys?: string[]; boardText?: string }> = Array.isArray(props.keyframes)
+        ? [...props.keyframes].sort((a, b) => (a.t || 0) - (b.t || 0))
+        : [];
+      const defaultKeys = Array.isArray(props.highlightKeys) ? props.highlightKeys : ['C4', 'E4', 'G4'];
+      const hlColor = props.highlightColor || '#f5c518';
+
+      dynamicUpdaters.push((t) => {
+        let activeKeys = defaultKeys;
+        let activeBoardText = initialBoardText;
+        for (const kf of keyframes) {
+          if (t >= (kf.t ?? 0)) {
+            if (Array.isArray(kf.keys)) activeKeys = kf.keys;
+            if (kf.boardText) activeBoardText = kf.boardText;
+          }
+        }
+        const activeSet = new Set(activeKeys.map(normalizeNote));
+        keyEntries.forEach((entry, note) => {
+          const isLit = activeSet.has(note);
+          entry.mat.color.set(isLit ? hlColor : entry.baseColor);
+          entry.mat.emissive.set(isLit ? hlColor : '#000000');
+          entry.mat.emissiveIntensity = isLit ? 0.72 : 0;
+          entry.mesh.position.y = isLit ? entry.baseY - 0.022 : entry.baseY;
+          entry.indicator.visible = isLit;
+        });
+        const nextTex = getBoardTex(activeBoardText);
+        if (boardFrontMat.map !== nextTex) {
+          boardFrontMat.map = nextTex;
+          boardFrontMat.needsUpdate = true;
+        }
+      });
+    }
+
+    // 12. CONCERT STAGE (Palco de Show com Luzes Animadas, Guitarra, Bateria e Plateia em Silhuetas)
+    else if (config.template === 'concert-stage') {
+      scene.background = new THREE.Color('#090518');
+      const floor = markIgnoreFraming(
+        new THREE.Mesh(
+          new THREE.PlaneGeometry(24, 24),
+          new THREE.MeshStandardMaterial({ color: '#0f0a1e', roughness: 0.85 })
+        )
+      );
+      floor.rotation.x = -Math.PI / 2;
+      floor.receiveShadow = true;
+      scene.add(floor);
+
+      const accent = props.accentColor || '#38bdf8';
+      const secLight = props.secondaryLightColor || '#ec4899';
+
+      // Palco elevado com borda luminosa
+      const stageDeck = new THREE.Mesh(
+        new RoundedBoxGeometry(3.2, 0.38, 2.0, 2, 0.04),
+        new THREE.MeshStandardMaterial({ color: '#1e1b2e', roughness: 0.55 })
+      );
+      stageDeck.position.set(0, 0.19, -0.15);
+      stageDeck.receiveShadow = true;
+      stageDeck.userData = { objectId: 'stage-deck', objectLabel: 'Palco Principal' };
+      scene.add(stageDeck);
+
+      const stageRim = new THREE.Mesh(
+        new THREE.BoxGeometry(3.22, 0.06, 0.06),
+        new THREE.MeshBasicMaterial({ color: accent })
+      );
+      stageRim.position.set(0, 0.36, 0.84);
+      scene.add(stageRim);
+
+      // Treliça metálica e 4 holofotes coloridos animados
+      const trussGroup = new THREE.Group();
+      for (const tx of [-1.48, 1.48]) {
+        const pillar = new THREE.Mesh(
+          new THREE.BoxGeometry(0.12, 3.68, 0.12),
+          new THREE.MeshStandardMaterial({ color: '#334155', metalness: 0.6, roughness: 0.4 })
+        );
+        pillar.position.set(tx, 2.22, -0.92);
+        trussGroup.add(pillar);
+      }
+      const topBar = new THREE.Mesh(
+        new THREE.BoxGeometry(3.12, 0.12, 0.12),
+        new THREE.MeshStandardMaterial({ color: '#475569', metalness: 0.6, roughness: 0.4 })
+      );
+      topBar.position.set(0, 4.0, -0.92);
+      trussGroup.add(topBar);
+      trussGroup.userData = { objectId: 'stage-truss', objectLabel: 'Treliça de Luzes' };
+      scene.add(trussGroup);
+
+      const lightBeams: Array<{ pivot: any; mat: any; idx: number }> = [];
+      [-1.05, -0.35, 0.35, 1.05].forEach((lx, idx) => {
+        const color = idx % 2 === 0 ? accent : secLight;
+        const pivot = new THREE.Group();
+        pivot.position.set(lx, 3.92, -0.88);
+        const can = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.08, 0.1, 0.2, 10),
+          new THREE.MeshStandardMaterial({ color: '#111827', emissive: color, emissiveIntensity: 0.6 })
+        );
+        const beamMat = new THREE.MeshBasicMaterial({
+          color,
+          transparent: true,
+          opacity: 0.22,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+        });
+        const cone = markIgnoreFraming(
+          new THREE.Mesh(new THREE.ConeGeometry(0.75, 3.6, 18, 1, true), beamMat)
+        );
+        cone.position.y = -1.85;
+        pivot.add(can, cone);
+        scene.add(pivot);
+        lightBeams.push({ pivot, mat: beamMat, idx });
+      });
+
+      // Telão traseiro do palco posicionado acima da cabeça do personagem
+      const stageScreen = createSignMesh(props.stageTitle || 'TERÇA MENOR', {
+        w: 2.35,
+        h: 0.96,
+        d: 0.08,
+        bgColor: '#0f172a',
+        textColor: '#ffffff',
+        subText: props.stageSubtitle || 'C4 · E♭4 · G4',
+        subColor: accent,
+        borderColor: secLight,
+        fontSize: 62,
+        texW: 768,
+        texH: 320,
+      });
+      stageScreen.position.set(0, 3.22, -1.0);
+      stageScreen.userData = { objectId: 'stage-screen', objectLabel: 'Telão do Palco' };
+      scene.add(stageScreen);
+
+      // Bateria low-poly simples à direita do palco
+      const drumGroup = new THREE.Group();
+      const kick = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.34, 0.34, 0.36, 18),
+        new THREE.MeshStandardMaterial({ color: secLight, roughness: 0.45 })
+      );
+      kick.rotation.x = Math.PI / 2;
+      kick.position.set(0, 0.35, 0);
+      const kickRim = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.35, 0.35, 0.04, 18),
+        new THREE.MeshStandardMaterial({ color: '#f8fafc', roughness: 0.35 })
+      );
+      kickRim.rotation.x = Math.PI / 2;
+      kickRim.position.set(0, 0.35, 0.18);
+      const snare = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.18, 0.18, 0.14, 14),
+        new THREE.MeshStandardMaterial({ color: '#e2e8f0', roughness: 0.4 })
+      );
+      snare.position.set(-0.34, 0.54, 0.12);
+      const snareStand = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.025, 0.03, 0.5, 8),
+        new THREE.MeshStandardMaterial({ color: '#94a3b8', metalness: 0.6 })
+      );
+      snareStand.position.set(-0.34, 0.25, 0.12);
+      const cymbalStand = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.02, 0.025, 0.96, 8),
+        new THREE.MeshStandardMaterial({ color: '#94a3b8', metalness: 0.6 })
+      );
+      cymbalStand.position.set(0.36, 0.48, 0.05);
+      const cymbal = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.24, 0.24, 0.02, 16),
+        new THREE.MeshStandardMaterial({ color: '#facc15', metalness: 0.75, roughness: 0.25 })
+      );
+      cymbal.position.set(0.36, 0.96, 0.05);
+      cymbal.rotation.z = -0.18;
+      drumGroup.add(kick, kickRim, snare, snareStand, cymbalStand, cymbal);
+      drumGroup.position.set(0.95, 0.38, -0.35);
+      drumGroup.scale.setScalar(0.82);
+      drumGroup.userData = { objectId: 'stage-drums', objectLabel: 'Bateria' };
+      scene.add(drumGroup);
+
+      // Guitarra no suporte à esquerda (ou amplificador quando personagem toca guitarra)
+      if (config.pose === 'play-guitar') {
+        const ampGroup = new THREE.Group();
+        const cab = new THREE.Mesh(
+          new RoundedBoxGeometry(0.56, 0.72, 0.36, 2, 0.03),
+          new THREE.MeshStandardMaterial({ color: '#111827', roughness: 0.65 })
+        );
+        cab.position.y = 0.36;
+        const grille = new THREE.Mesh(
+          new THREE.BoxGeometry(0.46, 0.52, 0.04),
+          new THREE.MeshStandardMaterial({ color: '#334155', roughness: 0.85 })
+        );
+        grille.position.set(0, 0.34, 0.17);
+        const logoBar = new THREE.Mesh(
+          new THREE.BoxGeometry(0.24, 0.06, 0.05),
+          new THREE.MeshStandardMaterial({ color: accent, roughness: 0.4 })
+        );
+        logoBar.position.set(0, 0.63, 0.17);
+        ampGroup.add(cab, grille, logoBar);
+        ampGroup.position.set(-1.05, 0.38, -0.35);
+        ampGroup.rotation.y = 0.35;
+        ampGroup.userData = { objectId: 'stage-amp', objectLabel: 'Amplificador' };
+        scene.add(ampGroup);
+      } else {
+        const guitarStandGroup = new THREE.Group();
+        const gPole = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.022, 0.04, 0.72, 8),
+          new THREE.MeshStandardMaterial({ color: '#111827', roughness: 0.5 })
+        );
+        gPole.position.y = 0.36;
+        const gBody = new THREE.Mesh(
+          new RoundedBoxGeometry(0.36, 0.48, 0.08, 3, 0.035),
+          new THREE.MeshStandardMaterial({ color: '#ef4444', roughness: 0.4 })
+        );
+        gBody.position.set(0, 0.42, 0.05);
+        gBody.rotation.x = -0.18;
+        const gNeck = new THREE.Mesh(
+          new THREE.BoxGeometry(0.09, 0.66, 0.05),
+          new THREE.MeshStandardMaterial({ color: '#78350f', roughness: 0.6 })
+        );
+        gNeck.position.set(0, 0.9, -0.04);
+        gNeck.rotation.x = -0.18;
+        guitarStandGroup.add(gPole, gBody, gNeck);
+        guitarStandGroup.position.set(-1.08, 0.38, -0.2);
+        guitarStandGroup.rotation.y = 0.35;
+        guitarStandGroup.userData = { objectId: 'stage-guitar', objectLabel: 'Guitarra no Suporte' };
+        scene.add(guitarStandGroup);
+      }
+
+      // Plateia em silhuetas diante do palco
+      const silhouetteMat = new THREE.MeshStandardMaterial({
+        color: '#030712',
+        roughness: 0.95,
+      });
+      const crowdSilhouettes: Array<{ group: any; baseY: number; phase: number }> = [];
+      const crowdCount = Math.max(8, Math.min(28, Number(props.crowdCount || 18)));
+      const rng = createRng(4040);
+      for (let i = 0; i < crowdCount; i++) {
+        const sil = markIgnoreFraming(new THREE.Group());
+        const head = new THREE.Mesh(new RoundedBoxGeometry(0.24, 0.24, 0.24, 2, 0.06), silhouetteMat);
+        head.position.y = 0.52;
+        const body = new THREE.Mesh(new RoundedBoxGeometry(0.28, 0.38, 0.18, 2, 0.05), silhouetteMat);
+        body.position.y = 0.2;
+        sil.add(head, body);
+        const row = i % 2;
+        const x = ((i / (crowdCount - 1)) - 0.5) * 2.9 + (rng() - 0.5) * 0.14;
+        const z = 1.2 + row * 0.42 + (rng() - 0.5) * 0.1;
+        const baseY = -0.05 - row * 0.08;
+        sil.position.set(x, baseY, z);
+        scene.add(sil);
+        crowdSilhouettes.push({ group: sil, baseY, phase: i * 0.65 });
+      }
+
+      // Personagem no centro do palco elevado
+      mainChar.position.set(0, 0.38, 0.05);
+      mainChar.userData.baseY = 0.38;
+      mainChar.scale.setScalar(0.78);
+
+      dynamicUpdaters.push((t) => {
+        lightBeams.forEach((b) => {
+          b.pivot.rotation.z = Math.sin(t * 2.2 + b.idx * 1.1) * 0.34;
+          b.pivot.rotation.x = 0.18 + Math.cos(t * 1.6 + b.idx) * 0.12;
+          b.mat.opacity = 0.16 + Math.abs(Math.sin(t * 3.0 + b.idx)) * 0.14;
+        });
+        crowdSilhouettes.forEach((c) => {
+          c.group.position.y = c.baseY + Math.abs(Math.sin(t * 5.2 + c.phase)) * 0.08;
+        });
+      });
+    }
+
+    // 13. SPOTLIGHT CLOSE / CARD DE REDE SOCIAL
     else {
       scene.background = new THREE.Color('#141418');
       const floor = markIgnoreFraming(
@@ -2047,6 +2697,7 @@ export function createScene3DEngine(THREE: any) {
   function isIgnoredForFraming(obj: any): boolean {
     let curr = obj;
     while (curr) {
+      if (curr.visible === false) return true;
       if (curr.userData && curr.userData.ignoreFraming) return true;
       curr = curr.parent;
     }

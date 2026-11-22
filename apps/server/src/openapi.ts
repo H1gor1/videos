@@ -25,7 +25,7 @@ export function buildOpenApiSpec() {
       },
       '/api/templates': {
         get: {
-          summary: 'Lista os 11 templates de cenário 3D procedural',
+          summary: 'Lista os 13 templates de cenário 3D procedural',
           responses: { '200': { description: 'Templates 3D' } },
         },
       },

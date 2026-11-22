@@ -89,20 +89,394 @@ function walkFiles(dir: string, maxFiles = 400): string[] {
 }
 
 /**
+ * Detecta a licença declarada no repositório vendor (LICENSE / REUSE.toml).
+ */
+function detectRepoLicense(repoDir: string, defaultLicense: string, isMarkdownDoc = false): string {
+  const licensePath = path.join(repoDir, 'LICENSE');
+  const reusePath = path.join(repoDir, 'REUSE.toml');
+  if (existsSync(licensePath)) {
+    try {
+      const text = readFileSync(licensePath, 'utf8');
+      if (isMarkdownDoc && /CC[\s-]BY[\s-]NC[\s-]4\.0/i.test(text)) {
+        return 'CC-BY-NC-4.0 (Docs — No Redistribution)';
+      }
+      if (/CC[\s-]BY[\s-]4\.0/i.test(text)) return 'CC-BY-4.0';
+      if (/Apache[\s-]2\.0/i.test(text)) return 'Apache-2.0';
+      if (/MIT License/i.test(text)) return 'MIT';
+    } catch {
+      // Fallback
+    }
+  }
+  if (existsSync(reusePath)) {
+    try {
+      const reuse = readFileSync(reusePath, 'utf8');
+      if (isMarkdownDoc && /CC-BY-NC-4\.0/.test(reuse)) {
+        return 'CC-BY-NC-4.0 (Docs — No Redistribution)';
+      }
+    } catch {
+      // Fallback
+    }
+  }
+  return defaultLicense;
+}
+
+function slugifyKeyword(input: string): string {
+  return input
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
+const IGNORED_DOC_BASENAMES = new Set([
+  'license',
+  'notices',
+  'notice',
+  'changelog',
+  'package',
+  'package-lock',
+  'tsconfig',
+  'vite.config',
+]);
+
+const IGNORED_SECTION_TITLES = /^(license|licen[cs]e|notices?|credits?|changelog|table of contents|contents|contributing)$/i;
+
+/**
+ * Extrai estilos reais (`styles/<slug>/STYLE.md`) e docs de técnica do `lemo-opuscar`.
+ */
+function extractLemoOpuscarItems(rootDir: string, repoDir: string, spec: VendorRepoSpec): LibraryItem[] {
+  const items: LibraryItem[] = [];
+  const sourceRepo = spec.url.replace(/\.git$/, '');
+  const styleLicense = detectRepoLicense(repoDir, 'Undeclared (Local Only — Do Not Redistribute)', true);
+  const stylesDir = path.join(repoDir, 'styles');
+
+  // 1. Estilos reais em styles/<slug>/STYLE.md (ignora _template e README.md)
+  if (existsSync(stylesDir)) {
+    const entries = readdirSync(stylesDir, { withFileTypes: true }).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (entry.name.startsWith('_') || entry.name.startsWith('.')) continue;
+
+      const slug = entry.name;
+      const styleDir = path.join(stylesDir, slug);
+      const styleMdPath = path.join(styleDir, 'STYLE.md');
+      if (!existsSync(styleMdPath)) continue;
+
+      const styleMd = readFileSync(styleMdPath, 'utf8');
+      const styleJsonPath = path.join(styleDir, 'style.json');
+      let styleJson: Record<string, any> = {};
+      if (existsSync(styleJsonPath)) {
+        try {
+          styleJson = JSON.parse(readFileSync(styleJsonPath, 'utf8'));
+        } catch {
+          styleJson = {};
+        }
+      }
+
+      // Título a partir do H1 (# <Nome> — Style Prompt)
+      const h1Raw = styleMd.match(/^#\s+(.+)$/m)?.[1]?.trim() || '';
+      const cleanTitle =
+        h1Raw
+          .replace(/\s*[—–-]\s*Style\s+Prompt\s*$/i, '')
+          .trim() ||
+        String(styleJson.en || '') ||
+        slug
+          .split('-')
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(' ');
+
+      // Descrição: primeiro blockquote descritivo após o H1 (ignorando linha "References (grammar only):")
+      const blockquoteLines = styleMd
+        .split('\n')
+        .filter((l) => l.trim().startsWith('>'))
+        .map((l) => l.replace(/^>\s*/, '').trim())
+        .filter((l) => l.length > 0 && !/^references\b/i.test(l));
+      const firstBlockquote = blockquoteLines[0] || String(styleJson.line || '');
+      const firstSentence =
+        firstBlockquote.match(/^[^.!?]+[.!?]/)?.[0]?.trim() ||
+        firstBlockquote.slice(0, 240).trim();
+
+      // Suits / uso e tags derivadas
+      const suitsLine = styleMd.match(/^Suits\s+(.+)$/im)?.[1] || '';
+      const rawKeywords = [
+        ...slug.split('-'),
+        ...(Array.isArray(styleJson.uses) ? styleJson.uses.map(String) : []),
+        ...(styleJson.category_en ? [String(styleJson.category_en)] : []),
+        ...suitsLine
+          .replace(/[.,;:!?()]/g, ' ')
+          .split(/\s+/)
+          .filter((w) => w.length >= 4 && !/^(that|with|from|this|into|your|more|when|where|which|they|them|have|will|suits|short|long|how|the|and|for)$/i.test(w)),
+      ];
+      const tags = Array.from(
+        new Set(
+          ['lemo-opuscar', 'style', slug, ...rawKeywords.map(slugifyKeyword)].filter(
+            (t) => t.length >= 2
+          )
+        )
+      ).slice(0, 14);
+
+      // Thumbnail / preview se existir imagem ou vídeo na pasta do estilo
+      let previewUrl: string | undefined;
+      for (const candidate of ['poster.jpg', 'poster.png', 'poster.webp', 'preview.mp4', 'preview.gif']) {
+        const candidateAbs = path.join(styleDir, candidate);
+        if (existsSync(candidateAbs)) {
+          previewUrl = path.relative(rootDir, candidateAbs);
+          break;
+        }
+      }
+      if (!previewUrl) {
+        const stillsDir = path.join(styleDir, 'demo', 'stills');
+        if (existsSync(stillsDir)) {
+          const stillFile = readdirSync(stillsDir).find((f) => /\.(jpe?g|png|webp|mp4)$/i.test(f));
+          if (stillFile) {
+            previewUrl = path.relative(rootDir, path.join(stillsDir, stillFile));
+          }
+        }
+      }
+
+      items.push({
+        id: `lemo-style-${slug}`,
+        type: 'style',
+        title: cleanTitle,
+        description: firstSentence || `Estilo cinematográfico ${cleanTitle} (Lemo-Opuscar).`,
+        tags,
+        sourceRepo,
+        sourcePath: path.relative(rootDir, styleMdPath),
+        license: styleLicense,
+        previewUrl,
+        engineHint: 'freeform',
+        contentPreview: styleMd.slice(0, 1200),
+        metadata: {
+          slug,
+          num: styleJson.num,
+          category: styleJson.category_en,
+          uses: styleJson.uses,
+          film: styleJson.film,
+        },
+      });
+    }
+  }
+
+  // 2. Docs gerais do lemo-opuscar (AGENTS.md, DIRECTOR.md, TECHNIQUE.md, etc.) apenas como 'technique'
+  const topFiles = existsSync(repoDir)
+    ? readdirSync(repoDir, { withFileTypes: true })
+        .filter((e) => e.isFile() && e.name.endsWith('.md'))
+        .map((e) => path.join(repoDir, e.name))
+    : [];
+  const docsDirFiles = walkFiles(path.join(repoDir, 'docs'), 60).filter((f) => f.endsWith('.md'));
+
+  for (const docFile of [...topFiles, ...docsDirFiles]) {
+    const baseName = path.basename(docFile, '.md');
+    if (IGNORED_DOC_BASENAMES.has(baseName.toLowerCase())) continue;
+    if (/\.zh-CN$/i.test(baseName) || baseName.toLowerCase() === 'readme') continue;
+
+    const relPath = path.relative(rootDir, docFile);
+    let content = '';
+    try {
+      content = readFileSync(docFile, 'utf8');
+    } catch {
+      continue;
+    }
+    const sections = content.split(/^#{2,3}\s+/m);
+    if (sections.length > 2) {
+      sections.slice(1, 30).forEach((sec, idx) => {
+        const lines = sec.trim().split('\n');
+        const rawTitle = (lines[0] || '').replace(/[*_`[\]]/g, '').trim();
+        if (!rawTitle || rawTitle.length < 3 || rawTitle.length > 100) return;
+        if (IGNORED_SECTION_TITLES.test(rawTitle)) return;
+        const body = lines.slice(1).join('\n').trim();
+        if (body.length < 40) return;
+        const secSlug = slugifyKeyword(rawTitle).slice(0, 40);
+        items.push({
+          id: `lemo-tech-${slugifyKeyword(baseName)}-${secSlug}-${idx}`,
+          type: 'technique',
+          title: `${baseName}: ${rawTitle}`,
+          description: body.slice(0, 220).replace(/\s+/g, ' '),
+          tags: ['lemo-opuscar', 'technique', slugifyKeyword(baseName), ...secSlug.split('-').filter((t) => t.length > 2)].slice(0, 8),
+          sourceRepo,
+          sourcePath: relPath,
+          license: styleLicense,
+          contentPreview: body.slice(0, 1200),
+          metadata: { sectionIndex: idx },
+        });
+      });
+    }
+  }
+
+  return items;
+}
+
+/**
+ * Extrai exatamente 1 item por vídeo/prompt do `awesome-opus5-5-videos`.
+ */
+function extractAwesomePromptsItems(rootDir: string, repoDir: string, spec: VendorRepoSpec): LibraryItem[] {
+  const items: LibraryItem[] = [];
+  const sourceRepo = spec.url.replace(/\.git$/, '');
+  const license = detectRepoLicense(repoDir, spec.license);
+  const videosJsonPath = path.join(repoDir, 'data', 'videos.json');
+  const promptsDir = path.join(repoDir, 'prompts');
+
+  if (existsSync(videosJsonPath)) {
+    try {
+      const list = JSON.parse(readFileSync(videosJsonPath, 'utf8'));
+      if (Array.isArray(list)) {
+        for (const entry of list) {
+          const slug = String(entry.slug || '').trim();
+          if (!slug) continue;
+          const promptMdPath = path.join(promptsDir, `${slug}.md`);
+          const sourceFile = existsSync(promptMdPath) ? promptMdPath : videosJsonPath;
+          const promptText = String(entry.prompt || '').trim();
+          const author = String(entry.author || '').trim();
+          const category = String(entry.category || 'video').trim();
+          const techTags = Array.isArray(entry.tech_tags) ? entry.tech_tags.map(String) : [];
+
+          items.push({
+            id: `awesome-prompt-${slug}`,
+            type: 'prompt',
+            title: author ? `@${author} — ${category} (${slug})` : `${category} (${slug})`,
+            description: (promptText || `Prompt de vídeo ${slug}`).slice(0, 220).replace(/\s+/g, ' '),
+            tags: Array.from(
+              new Set(['awesome-opus5-5-videos', 'prompt', slugifyKeyword(category), ...techTags.map(slugifyKeyword)].filter(Boolean))
+            ).slice(0, 10),
+            sourceRepo,
+            sourcePath: path.relative(rootDir, sourceFile),
+            license,
+            previewUrl: entry.poster_url ? String(entry.poster_url) : undefined,
+            engineHint: techTags.some((t: string) => /three/i.test(t)) ? 'freeform' : undefined,
+            contentPreview: promptText.slice(0, 1200),
+            metadata: {
+              slug,
+              author,
+              category,
+              techTags,
+              postUrl: entry.post_url,
+              skillryUrl: entry.skillry_url,
+              added: entry.added,
+            },
+          });
+        }
+        return items;
+      }
+    } catch {
+      // Segue para fallback em prompts/*.md
+    }
+  }
+
+  // Fallback para fixtures mínimas com prompts/*.md
+  if (existsSync(promptsDir)) {
+    const mdFiles = readdirSync(promptsDir)
+      .filter((f) => f.endsWith('.md'))
+      .sort();
+    for (const file of mdFiles) {
+      const abs = path.join(promptsDir, file);
+      const slug = path.basename(file, '.md');
+      const content = readFileSync(abs, 'utf8');
+      const h1 = content.match(/^#\s+(.+)$/m)?.[1]?.trim() || slug;
+      const promptBlock = content.match(/##\s*Prompt[\s\S]*?```(?:text)?\n([\s\S]*?)```/i)?.[1]?.trim() || content;
+      items.push({
+        id: `awesome-prompt-${slug}`,
+        type: 'prompt',
+        title: h1,
+        description: promptBlock.slice(0, 220).replace(/\s+/g, ' '),
+        tags: ['awesome-opus5-5-videos', 'prompt', slug],
+        sourceRepo,
+        sourcePath: path.relative(rootDir, abs),
+        license,
+        contentPreview: promptBlock.slice(0, 1200),
+        metadata: { slug },
+      });
+    }
+  }
+
+  return items;
+}
+
+/**
+ * Extrai exatamente 1 item por efeito PixelFX (`src/fx/<category>/<name>.js`, ignorando helpers `_*.js`).
+ */
+function extractPixelFxItems(rootDir: string, repoDir: string, spec: VendorRepoSpec): LibraryItem[] {
+  const items: LibraryItem[] = [];
+  const sourceRepo = spec.url.replace(/\.git$/, '');
+  const license = detectRepoLicense(repoDir, spec.license);
+  const fxRoot = path.join(repoDir, 'src', 'fx');
+  if (!existsSync(fxRoot)) return items;
+
+  const categories = readdirSync(fxRoot, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  for (const catDir of categories) {
+    const cat = catDir.name;
+    const catPath = path.join(fxRoot, cat);
+    const files = readdirSync(catPath)
+      .filter((f) => f.endsWith('.js') && !f.startsWith('_'))
+      .sort();
+
+    for (const file of files) {
+      const abs = path.join(catPath, file);
+      const slug = path.basename(file, '.js');
+      const content = readFileSync(abs, 'utf8');
+
+      const name = content.match(/\bname\s*:\s*["'`]([^"'`]+)["'`]/)?.[1]?.trim() || slug;
+      const desc = content.match(/\bdesc\s*:\s*["'`]([^"'`]+)["'`]/)?.[1]?.trim() || '';
+      const tagsRaw = content.match(/\btags\s*:\s*\[([^\]]*)\]/)?.[1] || '';
+      const parsedTags = Array.from(tagsRaw.matchAll(/["'`]([^"'`]+)["'`]/g)).map((m) =>
+        slugifyKeyword(m[1])
+      );
+      const durationMatch = content.match(/\bduration\s*:\s*([0-9.]+)/)?.[1];
+
+      items.push({
+        id: `pixelfx-${cat}-${slug}`,
+        type: 'effect',
+        title: name,
+        description: desc || `Efeito PixelFX ${cat}/${slug}`,
+        tags: Array.from(new Set(['pixelfx', 'effect', cat, slug, ...parsedTags].filter(Boolean))).slice(0, 10),
+        sourceRepo,
+        sourcePath: path.relative(rootDir, abs),
+        license,
+        contentPreview: content.slice(0, 1200),
+        metadata: {
+          fxId: `${cat}/${slug}`,
+          category: cat,
+          duration: durationMatch ? Number(durationMatch) : undefined,
+        },
+      });
+    }
+  }
+
+  return items;
+}
+
+/**
  * Extrai múltiplos itens de um arquivo Markdown (ex: README com seções `##` ou `###`)
  * ou de arquivos individuais (.md, .json, .ts, .js, .glsl).
  */
-function extractItemsFromVendorRepo(
+export function extractItemsFromVendorRepo(
   rootDir: string,
   repoDir: string,
   spec: VendorRepoSpec
 ): LibraryItem[] {
+  if (spec.folder === 'lemo-opuscar') {
+    return extractLemoOpuscarItems(rootDir, repoDir, spec);
+  }
+  if (spec.folder === 'awesome-opus5-5-videos') {
+    return extractAwesomePromptsItems(rootDir, repoDir, spec);
+  }
+  if (spec.folder === 'pixelfx') {
+    return extractPixelFxItems(rootDir, repoDir, spec);
+  }
+
   const items: LibraryItem[] = [];
-  const files = walkFiles(repoDir, 350);
+  const files = walkFiles(repoDir, 400);
+  const repoLicense = detectRepoLicense(repoDir, spec.license);
 
   for (const file of files) {
     const ext = path.extname(file).toLowerCase();
     const baseName = path.basename(file, ext);
+    if (IGNORED_DOC_BASENAMES.has(baseName.toLowerCase())) continue;
     if (!['.md', '.json', '.ts', '.tsx', '.js', '.html', '.txt', '.glsl', '.frag'].includes(ext)) {
       continue;
     }
@@ -122,8 +496,6 @@ function extractItemsFromVendorRepo(
       continue;
     }
 
-    // Se for um README.md grande com várias seções (como awesome-opus5-5-videos ou lemo-opuscar),
-    // extrai também cada seção ### como um item individual pesquisável
     if (ext === '.md' && content.length > 1200) {
       const sections = content.split(/^#{2,3}\s+/m);
       if (sections.length > 3) {
@@ -131,14 +503,11 @@ function extractItemsFromVendorRepo(
           const lines = sec.trim().split('\n');
           const rawTitle = (lines[0] || '').replace(/[*_`[\]]/g, '').trim();
           if (!rawTitle || rawTitle.length < 3 || rawTitle.length > 100) return;
+          if (IGNORED_SECTION_TITLES.test(rawTitle)) return;
           const body = lines.slice(1).join('\n').trim();
           if (body.length < 25) return;
 
-          const slug = rawTitle
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/(^-|-$)/g, '')
-            .slice(0, 40);
+          const slug = slugifyKeyword(rawTitle).slice(0, 40);
 
           items.push({
             id: `${spec.folder}-${slug}-${idx}`,
@@ -148,7 +517,7 @@ function extractItemsFromVendorRepo(
             tags: [spec.folder, spec.type, ...slug.split('-').filter((t) => t.length > 2)].slice(0, 8),
             sourceRepo: spec.url.replace(/\.git$/, ''),
             sourcePath: relPath,
-            license: spec.license,
+            license: repoLicense,
             contentPreview: body.slice(0, 1200),
             metadata: { sectionIndex: idx },
           });
@@ -187,7 +556,7 @@ function extractItemsFromVendorRepo(
                 : [spec.folder, spec.type, baseName],
               sourceRepo: spec.url.replace(/\.git$/, ''),
               sourcePath: relPath,
-              license: spec.license,
+              license: repoLicense,
               contentPreview: JSON.stringify(entry, null, 2).slice(0, 1200),
               metadata: {},
             });
@@ -198,8 +567,6 @@ function extractItemsFromVendorRepo(
         // Segue como arquivo normal
       }
     }
-
-    if (['package', 'package-lock', 'tsconfig', 'vite.config'].includes(baseName)) continue;
 
     const firstHeading = content.match(/^#\s+(.+)$/m)?.[1]?.trim();
     const title = firstHeading || `${spec.folder}: ${baseName}`;
@@ -217,7 +584,7 @@ function extractItemsFromVendorRepo(
       tags: [spec.folder, spec.type, baseName.toLowerCase()],
       sourceRepo: spec.url.replace(/\.git$/, ''),
       sourcePath: relPath,
-      license: spec.license,
+      license: repoLicense,
       contentPreview: content.slice(0, 1200),
       metadata: {},
     });

@@ -813,10 +813,10 @@ export function buildSceneOverlaysHtmlAndGsap(
     const flashId = `${sceneId}-whip`;
     const primaryCol = designKit?.palette.primary || '#f5c518';
     rootHtmlParts.push(
-      `<div id="${flashId}" style="position:absolute;inset:0;background:linear-gradient(90deg,transparent,${primaryCol}55,transparent);transform:translateX(-100%);pointer-events:none;z-index:30;"></div>`
+      `<div id="${flashId}" style="position:absolute;inset:0;background:linear-gradient(90deg,transparent,${primaryCol}55,transparent);opacity:0;pointer-events:none;z-index:30;"></div>`
     );
     gsapLines.push(
-      `tl.fromTo("#${flashId}", { xPercent: -100 }, { xPercent: 100, duration: 0.28, ease: "power2.inOut" }, ${sceneStart.toFixed(3)});`
+      `tl.fromTo("#${flashId}", { xPercent: -100, opacity: 1 }, { xPercent: 100, opacity: 0, duration: 0.28, ease: "power2.inOut" }, ${sceneStart.toFixed(3)});`
     );
   } else if (transition === 'fade') {
     const fadeId = `${sceneId}-fade`;

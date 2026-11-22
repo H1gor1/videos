@@ -10,7 +10,7 @@ export interface StageTemplateMetadata {
   id: StageTemplateId;
   name: string;
   description: string;
-  category: 'politics' | 'economy' | 'society' | 'media' | 'data';
+  category: 'politics' | 'economy' | 'society' | 'media' | 'data' | 'music';
   propsSchema: Record<string, { type: string; description: string; default: any }>;
   exampleProps: Record<string, any>;
   recommendedCamera: string[];
@@ -291,6 +291,63 @@ export const STAGE_TEMPLATES: StageTemplateMetadata[] = [
     recommendedCamera: ['pan', 'dolly-in'],
     recommendedPoses: ['pointing', 'talking'],
   },
+  {
+    id: 'music-studio',
+    name: 'Estúdio Musical com Piano 2 Oitavas, Monitores e Painel',
+    description:
+      'Estúdio acústico low-poly com teclado/piano de 2 oitavas (teclas brancas e pretas reais) que acendem notas em destaque via highlightKeys ou keyframes [{t, keys}], caixas monitoras, microfone com pedestal e painel didático.',
+    category: 'music',
+    propsSchema: {
+      boardText: { type: 'string', description: 'Texto exibido no painel/quadro atrás do teclado', default: 'DÓ MAIOR\nC · E · G' },
+      highlightKeys: {
+        type: 'array',
+        description: 'Notas acesas em destaque (ex: ["C4", "E4", "G4"] ou ["C4", "Eb4", "G4"])',
+        default: ['C4', 'E4', 'G4'],
+      },
+      keyframes: {
+        type: 'array',
+        description: 'Keyframes temporais opcionais [{t, keys, boardText?}] para animar acordes ao longo da cena',
+        default: [],
+      },
+      highlightColor: { type: 'string', description: 'Cor de destaque das teclas acesas', default: '#f5c518' },
+      wallColor: { type: 'string', description: 'Cor da parede acústica do estúdio', default: '#1e1b4b' },
+    },
+    exampleProps: {
+      boardText: 'DÓ MAIOR → MENOR\nC · E → E♭ · G',
+      highlightKeys: ['C4', 'E4', 'G4'],
+      keyframes: [
+        { t: 0, keys: ['C4', 'E4', 'G4'], boardText: 'DÓ MAIOR\nC · E · G' },
+        { t: 2.0, keys: ['C4', 'Eb4', 'G4'], boardText: 'DÓ MENOR\nC · E♭ · G' },
+      ],
+      highlightColor: '#f5c518',
+      wallColor: '#1e1b4b',
+    },
+    recommendedCamera: ['dolly-in', 'pan'],
+    recommendedPoses: ['play-piano', 'sing', 'talking'],
+  },
+  {
+    id: 'concert-stage',
+    name: 'Palco de Show com Luzes Animadas, Instrumentos e Plateia',
+    description:
+      'Palco elevado com treliça e holofotes coloridos animados, bateria low-poly, guitarra, telão traseiro e plateia em silhuetas vibrando no ritmo.',
+    category: 'music',
+    propsSchema: {
+      stageTitle: { type: 'string', description: 'Texto no telão luminoso ao fundo do palco', default: 'ACORDE MENOR' },
+      stageSubtitle: { type: 'string', description: 'Subtítulo no telão do palco', default: 'HARMONIA AO VIVO' },
+      accentColor: { type: 'string', description: 'Cor principal dos refletores e bordas do palco', default: '#38bdf8' },
+      secondaryLightColor: { type: 'string', description: 'Cor secundária dos refletores animados', default: '#ec4899' },
+      crowdCount: { type: 'number', description: 'Quantidade de silhuetas na plateia', default: 18 },
+    },
+    exampleProps: {
+      stageTitle: 'TERÇA MENOR',
+      stageSubtitle: 'C4 · E♭4 · G4',
+      accentColor: '#38bdf8',
+      secondaryLightColor: '#ec4899',
+      crowdCount: 18,
+    },
+    recommendedCamera: ['orbit', 'dolly-in'],
+    recommendedPoses: ['play-guitar', 'sing', 'conduct'],
+  },
 ];
 
 export const DEFAULT_CHARACTERS: Character[] = [
@@ -389,6 +446,25 @@ export const DEFAULT_CHARACTERS: Character[] = [
     accessories: ['suit', 'tie'],
     headScale: 1.34,
   },
+  {
+    id: 'prof-caio',
+    name: 'Prof. Caio Harmonia',
+    role: 'Professor de Música · Belo Horizonte',
+    skinColor: '#c68642',
+    hairStyle: 'short',
+    hairColor: '#1f1a17',
+    hasBeard: true,
+    beardColor: '#1f1a17',
+    hasGlasses: true,
+    glassesColor: '#eab308',
+    shirtColor: '#1e293b',
+    shirtAccentColor: '#38bdf8',
+    hasShirtStar: false,
+    pantsColor: '#0f172a',
+    shoeColor: '#f8fafc',
+    accessories: ['badge'],
+    headScale: 1.38,
+  },
 ];
 
 export const DEFAULT_VOICES: VoiceInfo[] = [
@@ -472,7 +548,7 @@ export const VIDEO_ENGINES: EngineDescriptor[] = [
   {
     id: 'scene3d',
     name: 'Simulação 3D (Three.js Blocky + GSAP)',
-    tagline: 'Personagens 3D chibi/blocky consistentes, 11 cenários low-poly, overlays jornalísticos e legendas amarelas.',
+    tagline: 'Personagens 3D chibi/blocky consistentes, 13 cenários low-poly, overlays jornalísticos e legendas amarelas.',
     description:
       'Engine flagship inspirado na série "Simulação 2030". Constrói personagens 3D procedurais parametrizáveis, cenários 3D com iluminação suave, movimentos de câmera dolly/orbit/pan e overlays 2D sincronizados em uma timeline GSAP determinística para o HyperFrames.',
     supportsCharacters: true,
@@ -720,7 +796,7 @@ export const STYLE_GUIDE_MARKDOWN = `# Guia de Estilo — Gerador de Vídeos Cur
   - Use quando o vídeo conta uma história, simulação política/econômica, explicação com apresentador 3D, debate ou jornada em etapas.
   - Personagem 3D **blocky/chibi** com cabeça grande (\`headScale: 1.38\`), barba/cabelo em blocos geométricos, óculos e acessórios (\`sash\`, \`tie\`, \`suit\`, \`hat\`, \`microphone\`, \`badge\`).
   - Cortes rápidos a cada **3,5 a 5,5 segundos** (ritmo de Reels/Shorts).
-  - Alterne cenários 3D a cada cena para manter retenção visual (\`red-carpet-confetti\`, \`pulpit-plenary\`, \`brazil-map-3d\`, \`city-spending-cap\`, \`bar-chart-3d\`, \`timeline-3d\`, \`news-desk\`, \`courtroom\`, \`street-protest\`).
+  - Alterne cenários 3D a cada cena para manter retenção visual (\`red-carpet-confetti\`, \`pulpit-plenary\`, \`brazil-map-3d\`, \`city-spending-cap\`, \`bar-chart-3d\`, \`timeline-3d\`, \`news-desk\`, \`courtroom\`, \`street-protest\`, \`music-studio\`, \`concert-stage\`).
 - **\`kinetic\` (Tipografia Cinética / Listas / Top-N)**:
   - Use para vídeos "Top 5...", "3 Números que...", "Comparativo X vs Y", estatísticas rápidas e citações.
 - **\`freeform\` (Composição Livre HyperFrames)**:
