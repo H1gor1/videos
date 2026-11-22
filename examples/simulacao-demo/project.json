@@ -1,0 +1,347 @@
+{
+  "id": "simulacao-demo",
+  "title": "SIMULAÇÃO 2030 · EP.1 — O Plano Industrial",
+  "topic": "E se um analista assumisse a presidência em 2030 com um plano de industrialização e reforma fiscal?",
+  "tone": "jornalístico-didático",
+  "targetDuration": 26,
+  "seriesId": "simulacao-2030",
+  "episodeNumber": 1,
+  "engine": "scene3d",
+  "styleId": "simulacao-lowpoly-3d",
+  "effectIds": [
+    "vignette"
+  ],
+  "status": "scripted",
+  "voice": {
+    "provider": "edge",
+    "voiceId": "pt-BR-AntonioNeural",
+    "rate": 1.12,
+    "pitch": "+0Hz"
+  },
+  "captionStyle": {
+    "enabled": true,
+    "style": "highlight-yellow",
+    "wordsPerGroup": 3,
+    "positionY": 83,
+    "fontSize": 32,
+    "highlightColor": "#f5c518",
+    "textColor": "#ffffff",
+    "burnIn": true
+  },
+  "renderSettings": {
+    "width": 720,
+    "height": 1280,
+    "fps": 30,
+    "crf": 21,
+    "workers": 2,
+    "renderer": "hyperframes",
+    "embedCaptions": true,
+    "musicTrack": "upbeat-simulation",
+    "musicVolume": 0.16,
+    "duckingThreshold": 0.03,
+    "sfxVolume": 0.32
+  },
+  "scenes": [
+    {
+      "id": "scene-1-abertura",
+      "order": 0,
+      "narration": "Na nossa simulação de dois mil e trinta, Marco chega à presidência.",
+      "duration": 4,
+      "template": "red-carpet-confetti",
+      "templateProps": {
+        "wallColor": "#5d5753",
+        "floorColor": "#c9c2b8",
+        "carpetColor": "#c1121f",
+        "confettiCount": 55,
+        "spotlightBeam": true
+      },
+      "characterId": "presidente-sim",
+      "secondaryCharacterIds": [],
+      "pose": "celebrating",
+      "camera": "dolly-in",
+      "transition": "cut",
+      "overlays": [
+        {
+          "type": "title",
+          "subtitle": "SIMULAÇÃO 2030 · EP. 1",
+          "text": "SIMULAÇÃO 2030",
+          "highlightWord": "2030",
+          "position": "top",
+          "boxed": false
+        },
+        {
+          "type": "badge",
+          "text": "NA NOSSA SIMULAÇÃO",
+          "icon": "⚠",
+          "color": "#f5c518"
+        },
+        {
+          "type": "lower-third",
+          "name": "MARCO SILVA",
+          "subtitle": "ECONOMISTA · RECIFE"
+        }
+      ],
+      "highlightWords": [
+        "simulação",
+        "presidência"
+      ],
+      "sfx": "cheer"
+    },
+    {
+      "id": "scene-2-plenario",
+      "order": 1,
+      "narration": "Antes ele virou deputado federal e articulou duzentos e cinquenta e sete votos.",
+      "duration": 4.2,
+      "template": "pulpit-plenary",
+      "templateProps": {
+        "partyLabel": "SIM 2030",
+        "partyColor": "#c1121f",
+        "screenTitle": "MUDAR A CONSTITUIÇÃO",
+        "screenNumber": "257",
+        "screenSub": "VOTOS NECESSÁRIOS DE 513",
+        "showHemicycle": true
+      },
+      "characterId": "marco-silva",
+      "secondaryCharacterIds": [],
+      "pose": "talking",
+      "camera": "dolly-in",
+      "transition": "whip",
+      "overlays": [
+        {
+          "type": "counter",
+          "label": "VOTOS NO CONGRESSO",
+          "from": 0,
+          "to": 257,
+          "prefix": "",
+          "suffix": "",
+          "sublabel": "VOTOS NECESSÁRIOS DE 513"
+        }
+      ],
+      "highlightWords": [
+        "deputado",
+        "votos"
+      ],
+      "sfx": "whoosh"
+    },
+    {
+      "id": "scene-3-mapa",
+      "order": 2,
+      "narration": "Para ele, exportar só minério e soja funciona como analgésico, mas não resolve.",
+      "duration": 4.2,
+      "template": "brazil-map-3d",
+      "templateProps": {
+        "mapColor": "#52b788",
+        "bgColor": "#023e8a",
+        "markers": [
+          {
+            "label": "MINÉRIO",
+            "x": 0.45,
+            "y": 0.15,
+            "color": "#f5c518"
+          },
+          {
+            "label": "SOJA",
+            "x": -0.15,
+            "y": -0.25,
+            "color": "#e63946"
+          },
+          {
+            "label": "INDÚSTRIA",
+            "x": 0.25,
+            "y": -0.55,
+            "color": "#00b4d8"
+          }
+        ],
+        "showPill": true,
+        "showRoutes": true
+      },
+      "characterId": "marco-silva",
+      "secondaryCharacterIds": [],
+      "pose": "pointing",
+      "camera": "orbit",
+      "transition": "cut",
+      "overlays": [
+        {
+          "type": "title",
+          "text": "O MODELO VIROU UM ANALGÉSICO",
+          "highlightWord": "ANALGÉSICO",
+          "position": "top",
+          "boxed": true
+        }
+      ],
+      "highlightWords": [
+        "minério",
+        "analgésico",
+        "resolve"
+      ],
+      "sfx": "ding"
+    },
+    {
+      "id": "scene-4-teto",
+      "order": 3,
+      "narration": "O primeiro passo seria puxar a alavanca do teto para liberar hospital e escola.",
+      "duration": 4,
+      "template": "city-spending-cap",
+      "templateProps": {
+        "beamLabel": "TETO DE GASTOS",
+        "buildings": [
+          {
+            "label": "HOSPITAL",
+            "color": "#e63946",
+            "height": 1
+          },
+          {
+            "label": "ESCOLA",
+            "color": "#1d3557",
+            "height": 0.92
+          },
+          {
+            "label": "POSTO",
+            "color": "#2a9d8f",
+            "height": 0.85
+          }
+        ],
+        "leverPulled": true
+      },
+      "characterId": "marco-silva",
+      "secondaryCharacterIds": [],
+      "pose": "pulling-lever",
+      "camera": "pan",
+      "transition": "cut",
+      "overlays": [],
+      "highlightWords": [
+        "alavanca",
+        "teto",
+        "escola"
+      ],
+      "sfx": "lever"
+    },
+    {
+      "id": "scene-5-recursos",
+      "order": 4,
+      "narration": "Com lítio, nióbio e terras raras processados aqui, o país dobra sua indústria.",
+      "duration": 4,
+      "template": "timeline-3d",
+      "templateProps": {
+        "milestones": [
+          {
+            "label": "LÍTIO",
+            "tag": "BRASIL",
+            "color": "#f4a261"
+          },
+          {
+            "label": "NIÓBIO",
+            "tag": "BRASIL",
+            "color": "#e9c46a"
+          },
+          {
+            "label": "TERRAS RARAS",
+            "tag": "BRASIL",
+            "color": "#e76f51"
+          }
+        ],
+        "mode": "barrels"
+      },
+      "characterId": "marco-silva",
+      "secondaryCharacterIds": [],
+      "pose": "pointing",
+      "camera": "dolly-in",
+      "transition": "whip",
+      "overlays": [
+        {
+          "type": "role-banner",
+          "title": "SOBERANIA INDUSTRIAL",
+          "subtitle": "REFINO NACIONAL DE MINERAIS CRÍTICOS",
+          "variant": "yellow"
+        }
+      ],
+      "highlightWords": [
+        "lítio",
+        "nióbio",
+        "indústria"
+      ],
+      "sfx": "coin"
+    },
+    {
+      "id": "scene-6-grafico",
+      "order": 5,
+      "narration": "Em quatro anos, economia, emprego e aprovação crescem juntos na simulação.",
+      "duration": 3.8,
+      "template": "bar-chart-3d",
+      "templateProps": {
+        "bars": [
+          {
+            "label": "ECONOMIA",
+            "value": 84,
+            "color": "#52b788",
+            "topBadge": "INVESTIMENTO"
+          },
+          {
+            "label": "CONGRESSO",
+            "value": 72,
+            "color": "#f5c518",
+            "topBadge": "EMPREGO"
+          },
+          {
+            "label": "APROVAÇÃO",
+            "value": 91,
+            "color": "#48cae4",
+            "topBadge": "VIDAS"
+          }
+        ],
+        "gridColor": "#1d4ed8"
+      },
+      "characterId": "marco-silva",
+      "secondaryCharacterIds": [],
+      "pose": "celebrating",
+      "camera": "dolly-in",
+      "transition": "zoom",
+      "overlays": [],
+      "highlightWords": [
+        "economia",
+        "emprego",
+        "aprovação"
+      ],
+      "sfx": "ding"
+    },
+    {
+      "id": "scene-7-final",
+      "order": 6,
+      "narration": "Na tua opinião, esse plano funcionaria em dois mil e trinta? Comenta aí!",
+      "duration": 3.8,
+      "template": "street-protest",
+      "templateProps": {
+        "signText": "COMENTA AÍ",
+        "crowdSize": 28,
+        "showFlags": true,
+        "bgColor": "#6a040f"
+      },
+      "characterId": "marco-silva",
+      "secondaryCharacterIds": [],
+      "pose": "waving",
+      "camera": "close-face",
+      "transition": "cut",
+      "overlays": [
+        {
+          "type": "watermark",
+          "handle": "@simulacao2030",
+          "position": "top-right"
+        },
+        {
+          "type": "progress-bar",
+          "color": "#f5c518"
+        }
+      ],
+      "highlightWords": [
+        "opinião",
+        "2030",
+        "Comenta"
+      ],
+      "sfx": "cheer"
+    }
+  ],
+  "kineticBlocks": [],
+  "totalDuration": 28,
+  "createdAt": "2026-11-21T23:22:33.961Z",
+  "updatedAt": "2026-11-21T23:22:33.961Z"
+}

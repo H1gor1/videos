@@ -1,0 +1,162 @@
+{
+  "id": "kinetic-top5",
+  "title": "TOP 5 TECNOLOGIAS QUE VÃO MUDAR 2030",
+  "topic": "Ranking acelerado das 5 tecnologias que mais vão transformar o trabalho até 2030",
+  "tone": "dinâmico-viral",
+  "targetDuration": 22,
+  "engine": "kinetic",
+  "styleId": "kinetic-swiss-bold",
+  "effectIds": [
+    "scanlines"
+  ],
+  "status": "scripted",
+  "voice": {
+    "provider": "edge",
+    "voiceId": "pt-BR-FranciscaNeural",
+    "rate": 1.15,
+    "pitch": "+0Hz"
+  },
+  "captionStyle": {
+    "enabled": true,
+    "style": "highlight-yellow",
+    "wordsPerGroup": 3,
+    "positionY": 83,
+    "fontSize": 30,
+    "highlightColor": "#f5c518",
+    "textColor": "#ffffff",
+    "burnIn": true
+  },
+  "renderSettings": {
+    "width": 720,
+    "height": 1280,
+    "fps": 30,
+    "crf": 21,
+    "workers": 2,
+    "renderer": "hyperframes",
+    "embedCaptions": true,
+    "musicTrack": "cyber-pulse",
+    "musicVolume": 0.16,
+    "duckingThreshold": 0.03,
+    "sfxVolume": 0.3
+  },
+  "scenes": [],
+  "kineticBlocks": [
+    {
+      "id": "kb-intro",
+      "order": 0,
+      "narration": "Cinco tecnologias que vão redesenhar o mercado até dois mil e trinta.",
+      "duration": 3.6,
+      "layout": "hero-stat",
+      "headline": "TOP 5 TECH 2030",
+      "subheadline": "CONTAGEM REGRESSIVA · #5 AO #1",
+      "highlightWord": "2030",
+      "badge": "RANKING OFICIAL",
+      "items": [],
+      "accentColor": "#f5c518",
+      "bgStyle": "dark-grid",
+      "transition": "zoom",
+      "sfx": "whoosh"
+    },
+    {
+      "id": "kb-5",
+      "order": 1,
+      "narration": "Número cinco: computação espacial com óculos leves substituindo telas físicas.",
+      "duration": 3.6,
+      "layout": "top-list-item",
+      "headline": "COMPUTAÇÃO ESPACIAL",
+      "subheadline": "ÓCULOS LEVES E GÊMEOS DIGITAIS 3D",
+      "highlightWord": "ESPACIAL",
+      "rankNumber": 5,
+      "items": [
+        "Interfaces Gestuais e Neurais",
+        "Projetos Industriais em Holograma"
+      ],
+      "accentColor": "#a855f7",
+      "bgStyle": "radial-glow",
+      "transition": "whip",
+      "sfx": "pop"
+    },
+    {
+      "id": "kb-4",
+      "order": 2,
+      "narration": "Número quatro: biotecnologia programável desenhando terapias em poucos dias.",
+      "duration": 3.6,
+      "layout": "top-list-item",
+      "headline": "BIOTECNOLOGIA PROGRAMÁVEL",
+      "subheadline": "FÁRMACOS E TERAPIAS GERADOS POR IA",
+      "highlightWord": "PROGRAMÁVEL",
+      "rankNumber": 4,
+      "items": [
+        "Síntese de Proteínas Sob Medida",
+        "Diagnóstico Preditivo Contínuo"
+      ],
+      "accentColor": "#22c55e",
+      "bgStyle": "dark-grid",
+      "transition": "whip",
+      "sfx": "pop"
+    },
+    {
+      "id": "kb-3",
+      "order": 3,
+      "narration": "Número três: baterias de estado sólido com mais de mil quilômetros de autonomia.",
+      "duration": 3.8,
+      "layout": "top-list-item",
+      "headline": "BATERIAS DE ESTADO SÓLIDO",
+      "subheadline": "AUTONOMIA DE 1.200 KM E RECARGA EM 8 MIN",
+      "highlightWord": "SÓLIDO",
+      "rankNumber": 3,
+      "items": [
+        "Densidade Energética Dobrada",
+        "Frotas Elétricas sem Risco Térmico"
+      ],
+      "accentColor": "#38bdf8",
+      "bgStyle": "neon-cyber",
+      "transition": "whip",
+      "sfx": "pop"
+    },
+    {
+      "id": "kb-2",
+      "order": 4,
+      "narration": "Número dois: robótica humanoide autônoma operando fábricas vinte e quatro horas.",
+      "duration": 3.8,
+      "layout": "top-list-item",
+      "headline": "ROBÓTICA HUMANOIDE AUTÔNOMA",
+      "subheadline": "MANUFATURA E LOGÍSTICA CONTÍNUA 24H",
+      "highlightWord": "AUTÔNOMA",
+      "rankNumber": 2,
+      "items": [
+        "Aprendizado Físico por Imitação",
+        "Custo Operacional Abaixo de US$ 4/h"
+      ],
+      "accentColor": "#f97316",
+      "bgStyle": "dark-grid",
+      "transition": "whip",
+      "sfx": "pop"
+    },
+    {
+      "id": "kb-1",
+      "order": 5,
+      "narration": "Em primeiro lugar: agentes de inteligência artificial operando sistemas inteiros.",
+      "duration": 4,
+      "layout": "counter-explosion",
+      "headline": "AGENTES DE IA AUTÔNOMOS",
+      "subheadline": "IMPACTO ESTIMADO NA PRODUTIVIDADE GLOBAL",
+      "highlightWord": "AUTÔNOMOS",
+      "rankNumber": 1,
+      "statValue": 340,
+      "statPrefix": "+",
+      "statSuffix": "%",
+      "items": [
+        "Orquestração Multi-Agente via MCP",
+        "Código, Vídeo e Dados em Tempo Real"
+      ],
+      "accentColor": "#f5c518",
+      "bgStyle": "crimson-burst",
+      "transition": "zoom",
+      "sfx": "ding"
+    }
+  ],
+  "totalDuration": 22.4,
+  "createdAt": "2026-11-21T23:22:33.961Z",
+  "updatedAt": "2026-11-21T23:22:33.961Z"
+}

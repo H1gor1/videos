@@ -1,0 +1,84 @@
+/* Open Design ProjectGroup row states adapted to Studio's neutral palette. */
+:root[data-motion-ui][data-motion-studio] {
+  --studio-disclosure-row-height: calc(var(--motion-space-32) + var(--motion-space-4));
+}
+
+:root[data-motion-ui][data-motion-studio] .motion-session-search[data-form-field] {
+  --studio-form-height: var(--studio-disclosure-row-height);
+}
+
+[data-motion-studio] .om-disclosure-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding-inline-end: var(--motion-space-6);
+  border-radius: var(--motion-radius-xl);
+  background: transparent;
+  transition: background-color var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+[data-motion-studio] :is(.om-disclosure-row, .motion-session-heading > span) {
+  color: light-dark(var(--motion-neutral-n8), var(--motion-neutral-n5));
+}
+
+[data-motion-studio] .om-disclosure-row:is(:hover, :has(.om-disclosure-row-action [aria-expanded="true"])) {
+  background: light-dark(var(--motion-neutral-n2), var(--motion-neutral-n10));
+}
+
+[data-motion-studio] .om-disclosure-row[data-active="true"] {
+  background: light-dark(var(--motion-neutral-n3), var(--motion-neutral-n9));
+}
+
+:root[data-motion-ui][data-motion-studio] .om-disclosure-row .om-disclosure-row-label {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--studio-disclosure-row-height);
+  padding: 0 var(--motion-space-12);
+  border-radius: var(--motion-radius-xl);
+  background: transparent;
+  color: inherit;
+}
+
+[data-motion-studio] :is(.om-disclosure-row-label strong, .motion-session-heading > span) {
+  font-size: var(--motion-text-md);
+  font-weight: var(--motion-weight-medium);
+}
+
+:root[data-motion-ui][data-motion-studio] .om-disclosure-row:has(.om-disclosure-row-label:focus-visible) {
+  outline: 1px solid var(--studio-form-focus);
+  outline-offset: -1px;
+}
+
+:root[data-motion-ui][data-motion-studio] .om-disclosure-row .om-disclosure-row-label:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+[data-motion-studio] .om-disclosure-row-action {
+  display: flex;
+  flex: none;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+[data-motion-studio] .om-disclosure-row:is(:hover, :focus-within, :has(.om-disclosure-row-action [aria-expanded="true"])) .om-disclosure-row-action {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+:root[data-motion-ui][data-motion-studio] .om-disclosure-row-action > button {
+  width: var(--motion-space-24);
+  height: var(--motion-space-24);
+  border-radius: var(--motion-radius-sm);
+  color: inherit;
+}
+
+@media (hover: none) {
+  [data-motion-studio] .om-disclosure-row-action { opacity: 1; pointer-events: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-motion-studio] :is(.om-disclosure-row, .om-disclosure-row-action) { transition: none; }
+}

@@ -1,0 +1,50 @@
+{
+  "name": "videos-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Pipeline, Interface Web e Servidor MCP para geração de vídeos curtos verticais (Reels/Shorts) com Three.js, GSAP e HyperFrames",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "node --import tsx apps/server/src/index.ts",
+    "dev:web": "vite --config apps/web/vite.config.ts",
+    "build:web": "vite build --config apps/web/vite.config.ts",
+    "build": "npm run build:web",
+    "server": "node --import tsx apps/server/src/index.ts",
+    "mcp": "node --import tsx apps/mcp/src/index.ts",
+    "cli": "node --import tsx apps/cli/src/index.ts",
+    "gen": "node --import tsx apps/cli/src/gen.ts",
+    "library:sync": "node --import tsx apps/cli/src/library-sync.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fontsource/anton": "^5.1.0",
+    "@fontsource/bebas-neue": "^5.1.0",
+    "@fontsource/inter": "^5.1.0",
+    "@hono/node-server": "^1.13.7",
+    "@modelcontextprotocol/sdk": "^1.11.0",
+    "gsap": "^3.12.5",
+    "hono": "^4.7.2",
+    "msedge-tts": "^2.0.4",
+    "puppeteer-core": "^24.2.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "three": "^0.173.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "@types/three": "^0.173.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0",
+    "vitest": "^3.0.6"
+  }
+}

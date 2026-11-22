@@ -1,0 +1,125 @@
+/* Boxed fields and composite field shells share the Studio form palette. */
+:root[data-motion-ui][data-motion-studio] {
+  --studio-form-fill: light-dark(var(--motion-neutral-n2), var(--motion-neutral-n9));
+  --studio-form-hover: light-dark(
+    color-mix(in srgb, var(--motion-neutral-n2) 98%, var(--motion-neutral-n11) 2%),
+    var(--motion-neutral-n8)
+  );
+  --studio-form-focus: light-dark(var(--motion-neutral-n11), var(--motion-neutral-n2));
+  --studio-form-ink: light-dark(var(--motion-neutral-n9), var(--motion-neutral-n3));
+  --studio-form-arrow: light-dark(var(--motion-neutral-n7), var(--motion-neutral-n4));
+}
+
+:root[data-motion-ui][data-motion-studio] :is(
+  [data-form-control="boxed"],
+  [data-form-field],
+  .om-field:where(:has(> [data-form-control="embedded"]))
+) {
+  box-sizing: border-box;
+  min-width: 0;
+  border-color: transparent;
+  border-radius: var(--motion-radius-editor-control);
+  background-color: var(--studio-form-fill);
+  color: var(--studio-form-ink);
+}
+
+:root[data-motion-ui][data-motion-studio] :is(
+  [data-form-control="boxed"],
+  [data-form-field],
+  .om-field:where(:has(> [data-form-control="embedded"]))
+):not(:disabled, [aria-disabled="true"], :has(> :disabled)):hover {
+  background-color: var(--studio-form-hover);
+}
+
+:root[data-motion-ui][data-motion-studio] :is(
+  [data-form-control="boxed"],
+  [data-form-control="inline"],
+  [data-form-field],
+  .om-field:where(:has(> [data-form-control="embedded"]))
+):not(:where([aria-invalid="true"])):is(:focus-within, [aria-expanded="true"], :has(> select:open)) {
+  outline: 1px solid var(--studio-form-focus);
+  outline-offset: 1px;
+  box-shadow: none;
+}
+
+:root[data-motion-ui][data-motion-studio] :is([data-form-control="boxed"], [data-form-control="inline"])[aria-invalid="true"] {
+  outline: 1px solid var(--motion-danger);
+  outline-offset: 1px;
+}
+
+:root[data-motion-ui][data-motion-studio] :is(
+  [data-form-control="boxed"], [data-form-control="embedded"]
+)::placeholder { color: var(--motion-neutral-n6); opacity: 1; }
+
+:root[data-motion-ui][data-motion-studio] :is([data-form-control="boxed"], [data-form-control="embedded"]):disabled {
+  color: var(--motion-neutral-n6);
+  opacity: 1;
+  cursor: not-allowed;
+}
+
+:root[data-motion-ui][data-motion-studio] :is([data-form-field], .om-field) > [data-form-control="embedded"]:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+:root[data-motion-ui][data-motion-studio] :is([data-form-field], .om-field) > input[data-form-control="embedded"]:enabled {
+  font-size: var(--motion-text-sm);
+  color: var(--studio-form-ink);
+}
+
+:root[data-motion-ui][data-motion-studio] :is([data-form-control="boxed"], [data-form-field]) {
+  --studio-form-height: var(--motion-control);
+  --studio-form-padding: var(--motion-space-12);
+}
+:root[data-motion-ui][data-motion-studio] :is([data-form-density="compact"], [data-form-field="compact"]) {
+  --studio-form-height: var(--motion-control-sm);
+  --studio-form-padding: var(--motion-space-8);
+}
+:root[data-motion-ui][data-motion-studio] :is(
+  [data-form-control="boxed"]:where(input, select, button):where(:not([data-form-density="intrinsic"])),
+  [data-form-field]:where(:not([data-form-field="intrinsic"]))
+) {
+  height: var(--studio-form-height);
+  padding-block: 0;
+  padding-inline: var(--studio-form-padding);
+  font-size: var(--motion-text-sm);
+}
+
+:root[data-motion-ui][data-motion-studio] button[data-form-control="boxed"]:enabled { cursor: pointer; }
+
+:root[data-motion-ui][data-motion-studio] button[data-form-control="boxed"] [data-select-arrow] {
+  color: var(--studio-form-arrow);
+  transform-origin: center;
+  transform-box: view-box;
+}
+
+:root[data-motion-ui][data-motion-studio] button[data-form-control="boxed"][aria-expanded="true"] [data-select-arrow] {
+  transform: rotate(180deg);
+}
+
+:root[data-motion-ui][data-motion-studio] button[data-form-control="boxed"]:disabled [data-select-arrow] {
+  color: var(--motion-neutral-n6);
+}
+
+/* The native picker retains its form, keyboard and platform behavior. */
+:root[data-motion-ui][data-motion-studio] select[data-form-control="boxed"] {
+  appearance: none;
+  padding-inline-end: var(--motion-space-24);
+  background-image:
+    linear-gradient(45deg, transparent 45%, var(--studio-form-arrow) 45% 66%, transparent 66%),
+    linear-gradient(-45deg, transparent 45%, var(--studio-form-arrow) 45% 66%, transparent 66%);
+  background-position: right 12px center, right 8px center;
+  background-size: 4px 4px;
+  background-repeat: no-repeat;
+}
+:root[data-motion-ui][data-motion-studio] select[data-form-control="boxed"]:open {
+  background-position: right 8px center, right 12px center;
+}
+:root[data-motion-ui][data-motion-studio] select[data-form-control="boxed"]:enabled { cursor: pointer; }
+
+@media (forced-colors: active) {
+  :root[data-motion-ui][data-motion-studio] select[data-form-control="boxed"] {
+    appearance: auto;
+    background-image: none;
+  }
+}
