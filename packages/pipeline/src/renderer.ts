@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:f
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
-import type { AppSettings, RendererId, RenderSettings } from '@videos/core';
+import type { AppSettings, RendererId, RenderSettings } from '@kinema/core';
 
 const execFileAsync = promisify(execFile);
 

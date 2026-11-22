@@ -1,13 +1,13 @@
 import {
   STAGE_TEMPLATES,
   VIDEO_ENGINES,
-} from '@videos/core';
+} from '@kinema/core';
 
 export function buildOpenApiSpec() {
   return {
     openapi: '3.1.0',
     info: {
-      title: 'Videos Studio API (Reels / Shorts Generator)',
+      title: 'Kinema API (Reels / Shorts Generator)',
       version: '0.1.0',
       description:
         'API REST, SSE e MCP Streamable HTTP para geração de vídeos curtos verticais com Three.js, GSAP e HyperFrames.',

@@ -22,14 +22,14 @@ import {
   WORKSPACE_ROOT,
   getVideoService,
   type VideoService,
-} from '@videos/core';
-import { attachPipelineToService } from '@videos/pipeline';
+} from '@kinema/core';
+import { attachPipelineToService } from '@kinema/pipeline';
 
-export function createVideosMcpServer(customService?: VideoService): McpServer {
+export function createKinemaMcpServer(customService?: VideoService): McpServer {
   const service = customService || attachPipelineToService(getVideoService(WORKSPACE_ROOT));
 
   const server = new McpServer({
-    name: 'videos-studio-mcp',
+    name: 'kinema-mcp',
     version: '0.1.0',
   });
 
@@ -39,7 +39,7 @@ export function createVideosMcpServer(customService?: VideoService): McpServer {
 
   server.resource(
     'scene-schema',
-    'videos://docs/scene-schema',
+    'kinema://docs/scene-schema',
     {
       description: 'Esquema JSON completo de cenas 3D, blocos cinéticos, personagens e overlays.',
       mimeType: 'application/json',
@@ -66,7 +66,7 @@ export function createVideosMcpServer(customService?: VideoService): McpServer {
 
   server.resource(
     'style-guide',
-    'videos://docs/style-guide',
+    'kinema://docs/style-guide',
     {
       description: 'Guia de estilo completo para criação de vídeos curtos verticais (scene3d, kinetic, freeform).',
       mimeType: 'text/markdown',
@@ -84,10 +84,10 @@ export function createVideosMcpServer(customService?: VideoService): McpServer {
 
   server.resource(
     'template-detail',
-    new ResourceTemplate('videos://templates/{id}', {
+    new ResourceTemplate('kinema://templates/{id}', {
       list: async () => ({
         resources: STAGE_TEMPLATES.map((t) => ({
-          uri: `videos://templates/${t.id}`,
+          uri: `kinema://templates/${t.id}`,
           name: t.name,
           description: t.description,
           mimeType: 'application/json',
@@ -136,7 +136,7 @@ export function createVideosMcpServer(customService?: VideoService): McpServer {
             text: `Você vai criar um episódio completo no estilo "Simulação 2030" sobre: "${topic}" (duração alvo: ${duration || '30'}s).
 
 Siga exatamente este fluxo usando as tools MCP:
-1. Leia \`videos://docs/style-guide\` ou chame \`list_templates\` e \`list_characters\`.
+1. Leia \`kinema://docs/style-guide\` ou chame \`list_templates\` e \`list_characters\`.
 2. Escolha ou crie um personagem blocky 3D via \`create_character\` (cabeça grande chibi, barba/cabelo em blocos, óculos, acessórios como faixa presidencial ou terno).
 3. Crie o projeto com \`create_project\` (\`engine: "scene3d"\`).
 4. Envie o roteiro e plano de cenas completo via \`set_script\` alternando pelo menos 5 templates de cenário 3D diferentes, cortes de 3,5 a 5s, poses dinâmicas (\`celebrating\`, \`talking\`, \`pointing\`, \`pulling-lever\`, \`waving\`) e overlays 2D (\`title\`, \`badge\`, \`lower-third\`, \`counter\`, \`role-banner\`).

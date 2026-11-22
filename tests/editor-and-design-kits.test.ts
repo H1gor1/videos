@@ -2,8 +2,8 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { VideoService, type Project } from '@videos/core';
-import { composeProject } from '@videos/composer';
+import { VideoService, type Project } from '@kinema/core';
+import { composeProject } from '@kinema/composer';
 import { EditHistoryManager } from '../apps/web/src/editor/useEditHistory.ts';
 import {
   buildCompositionSnapTarget,
@@ -16,7 +16,7 @@ describe('Editor NLE: Histórico Undo/Redo, Snapping Magnético, Overrides 2D/3D
   let service: VideoService;
 
   beforeEach(() => {
-    tempRoot = mkdtempSync(path.join(tmpdir(), 'videos-editor-test-'));
+    tempRoot = mkdtempSync(path.join(tmpdir(), 'kinema-editor-test-'));
     service = new VideoService(tempRoot);
   });
 

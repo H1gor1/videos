@@ -14,7 +14,7 @@ import type {
   LibraryItemType,
   ReferenceBreakdown,
   StageTemplateId,
-} from '@videos/core';
+} from '@kinema/core';
 
 const execFileAsync = promisify(execFile);
 

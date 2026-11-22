@@ -10,8 +10,8 @@ import {
   type Project,
   type VideoEngineId,
   type WordTimestamp,
-} from '@videos/core';
-import { createScene3DEngine } from '@videos/scenes';
+} from '@kinema/core';
+import { createScene3DEngine } from '@kinema/scenes';
 import {
   buildCaptionsHtmlAndController,
   buildSceneOverlaysHtmlAndGsap,
@@ -20,7 +20,7 @@ import {
   generateAssContent,
   generateOverlaysCss,
   generateSrtContent,
-} from '@videos/overlays';
+} from '@kinema/overlays';
 
 export interface ComposeOptions {
   workspaceRoot?: string;

@@ -16,11 +16,11 @@
     "allowImportingTsExtensions": true,
     "baseUrl": ".",
     "paths": {
-      "@videos/core": ["packages/core/src/index.ts"],
-      "@videos/scenes": ["packages/scenes/src/index.ts"],
-      "@videos/overlays": ["packages/overlays/src/index.ts"],
-      "@videos/composer": ["packages/composer/src/index.ts"],
-      "@videos/pipeline": ["packages/pipeline/src/index.ts"]
+      "@kinema/core": ["packages/core/src/index.ts"],
+      "@kinema/scenes": ["packages/scenes/src/index.ts"],
+      "@kinema/overlays": ["packages/overlays/src/index.ts"],
+      "@kinema/composer": ["packages/composer/src/index.ts"],
+      "@kinema/pipeline": ["packages/pipeline/src/index.ts"]
     }
   },
   "include": [

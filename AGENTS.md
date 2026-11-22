@@ -1,10 +1,10 @@
-# AGENTS.md — Guia para Agentes de IA (Videos Studio)
+# AGENTS.md — Guia para Agentes de IA (Kinema)
 
 Este repositório é um estúdio completo (Pipeline + Interface Web + Servidor MCP + CLI) para criação de vídeos curtos verticais (Reels/Shorts, 9:16) determinísticos usando **Three.js**, **GSAP**, **HyperFrames** e **FFmpeg**.
 
 ## Fluxo Obrigatório para Agentes via MCP
 
-Quando o usuário pedir para criar ou editar um vídeo curto vertical, siga exatamente estas etapas usando as tools do servidor MCP (`videos-studio-mcp`):
+Quando o usuário pedir para criar ou editar um vídeo curto vertical, siga exatamente estas etapas usando as tools do servidor MCP (`kinema-mcp`):
 
 1. **Escolher o Engine (`list_engines` + `get_engine_schema`)**:
    - `scene3d` (**Flagship — Estilo "Simulação 2030"**): Personagens 3D blocky/chibi procedurais consistentes + 11 cenários low-poly (`red-carpet-confetti`, `pulpit-plenary`, `brazil-map-3d`, `city-spending-cap`, `timeline-3d`, `bar-chart-3d`, `street-protest`, `classroom-office`, `news-desk`, `courtroom`, `spotlight-close`) + movimentos de câmera (`dolly-in`, `orbit`, `pan`, `close-face`, `shake`, `static`) + overlays 2D (`title`, `badge`, `lower-third`, `role-banner`, `counter`, `watermark`, `progress-bar`, `effect`) + legendas word-by-word (`highlight-yellow`).
@@ -13,7 +13,7 @@ Quando o usuário pedir para criar ou editar um vídeo curto vertical, siga exat
 
 2. **Consultar o Design Kit, o Guia de Estilo e a Biblioteca (`list_design_kits` + `get_design_kit` + `search_library` + `get_library_item`)**:
    - Sempre leia o Design Kit ativo do projeto com `get_design_kit` (ex: `"simulacao-2030"` ou `"editorial-minimal"`). Respeite sua paleta (`palette`), fontes permitidas (`typography.allowedFonts`), margens seguras (`safeArea`), ritmo (`pacing`) e regras livres (`rules`). Para trocar toda a identidade visual de um projeto sem editar cena por cena, chame `apply_design_kit`.
-   - Leia o resource `videos://docs/style-guide`.
+   - Leia o resource `kinema://docs/style-guide`.
    - Pesquise na biblioteca local (>3.200 itens indexados) por um `prompt` viral (`awesome-opus5-5-videos`), um `style` cinematográfico (`lemo-opuscar` — 99 estilos), um `effect` (`pixelfx` — 244 efeitos), um `block` (`hyperframes` — ~450 blocos) ou uma `technique` (`remotion-skills` / `rea-video`).
    - Se o usuário fornecer um vídeo de referência para copiar/recriar, chame `breakdown_reference_video` primeiro.
 

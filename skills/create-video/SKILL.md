@@ -1,6 +1,6 @@
 ---
 name: create-video
-description: Cria vídeos curtos verticais (Reels/Shorts) determinísticos usando o servidor MCP videos-studio-mcp (engines scene3d, kinetic e freeform, biblioteca de 99 estilos/prompts/efeitos e renderização HyperFrames + FFmpeg).
+description: Cria vídeos curtos verticais (Reels/Shorts) determinísticos usando o servidor MCP kinema-mcp (engines scene3d, kinetic e freeform, biblioteca de 99 estilos/prompts/efeitos e renderização HyperFrames + FFmpeg).
 ---
 
 # Skill: Criação de Vídeos Curtos Verticais (`create-video`)
@@ -24,7 +24,7 @@ Chame `list_engines` e `get_engine_schema`:
 - **Obrigatório**: Antes de criar ou editar cenas, consulte o Design Kit do projeto chamando `get_design_kit` (com o `designKitId` do projeto, padrão `"simulacao-2030"`, ou liste todos os kits disponíveis com `list_design_kits`).
   - Respeite rigorosamente a paleta (`palette`), as fontes permitidas (`typography.allowedFonts`), as margens de safe area 9:16 (`safeArea`), o ritmo de cena (`pacing`) e as regras livres (`rules`) do Design Kit.
   - Para alternar toda a identidade visual de um vídeo sem editar cena por cena (ex: de `"simulacao-2030"` para `"editorial-minimal"`), chame `apply_design_kit`.
-- Leia `videos://docs/style-guide`.
+- Leia `kinema://docs/style-guide`.
 - No modo `scene3d`, chame `list_characters` ou crie um personagem dedicado com `create_character` (ex: camisa vermelha, faixa presidencial `sash`, barba e cabelo `afro` em blocos, óculos).
 - Consulte `list_templates` para ver os 11 cenários 3D e seus `propsSchema`:
   1. `red-carpet-confetti`

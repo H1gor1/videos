@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import type { RenderSettings } from '@videos/core';
+import type { RenderSettings } from '@kinema/core';
 
 const execFileAsync = promisify(execFile);
 

@@ -4,23 +4,23 @@ import path from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { describe, expect, it } from 'vitest';
-import { WORKSPACE_ROOT } from '@videos/core';
+import { WORKSPACE_ROOT } from '@kinema/core';
 
 describe('Servidor MCP Stdio — Teste de Integração Ponta a Ponta', () => {
   it(
     'conecta um cliente MCP via stdio, consulta library/templates, cria personagem e projeto, define roteiro e valida',
     async () => {
-      const tmpDataDir = mkdtempSync(path.join(tmpdir(), 'videos-test-'));
+      const tmpDataDir = mkdtempSync(path.join(tmpdir(), 'kinema-test-'));
 
       const transport = new StdioClientTransport({
         command: process.execPath,
         args: ['--import', 'tsx', path.join(WORKSPACE_ROOT, 'apps/mcp/src/index.ts')],
         cwd: WORKSPACE_ROOT,
-        env: { ...process.env, VIDEOS_DATA_DIR: tmpDataDir },
+        env: { ...process.env, KINEMA_DATA_DIR: tmpDataDir },
       });
 
       const client = new Client(
-        { name: 'videos-test-client', version: '0.1.0' },
+        { name: 'kinema-test-client', version: '0.1.0' },
         { capabilities: {} }
       );
 
@@ -49,7 +49,7 @@ describe('Servidor MCP Stdio — Teste de Integração Ponta a Ponta', () => {
 
         // 2. Ler resource style-guide
         const resourceRes = await client.readResource({
-          uri: 'videos://docs/style-guide',
+          uri: 'kinema://docs/style-guide',
         });
         const firstContent = resourceRes.contents[0] as { text?: string };
         expect(firstContent.text).toContain('Guia de Estilo');

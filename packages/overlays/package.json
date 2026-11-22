@@ -1,5 +1,5 @@
 {
-  "name": "@videos/overlays",
+  "name": "@kinema/overlays",
   "version": "0.1.0",
   "private": true,
   "type": "module",

@@ -3,7 +3,7 @@
  * Origem: /home/higorlino/openmotion/studio/src/hooks/usePersistentEditHistory.ts
  */
 import { useCallback, useRef, useState } from 'react';
-import type { Project } from '@videos/core';
+import type { Project } from '@kinema/core';
 
 export interface EditHistoryEntry<T = Project> {
   id: string;

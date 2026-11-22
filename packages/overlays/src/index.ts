@@ -4,7 +4,7 @@ import type {
   OverlayItem,
   TransitionType,
   WordTimestamp,
-} from '@videos/core';
+} from '@kinema/core';
 
 export interface CaptionGroup {
   id: string;

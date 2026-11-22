@@ -6,7 +6,7 @@ import type {
   DesignKit,
   SceneObjectOverride,
   StageTemplateId,
-} from '@videos/core';
+} from '@kinema/core';
 import { RoundedBoxGeometry as ThreeRoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 
 export interface Scene3DRenderConfig {

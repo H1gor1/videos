@@ -23,7 +23,7 @@ import type {
   TransitionType,
   VideoEngineId,
   VoiceInfo,
-} from '@videos/core';
+} from '@kinema/core';
 import { ThreeViewport } from './components/ThreeViewport.tsx';
 import { NleEditorWorkspace } from './editor/NleEditorWorkspace.tsx';
 import { DesignKitsWorkspace } from './design-kits/DesignKitsWorkspace.tsx';
@@ -511,7 +511,7 @@ export const App: React.FC = () => {
       <header className="vs-topbar">
         <div className="vs-brand">
           <span className="vs-brand-badge">SIMULAÇÃO 3D & HYPERFRAMES</span>
-          <span>Videos Studio</span>
+          <span>Kinema</span>
           {activeProject && (
             <span className="ui-badge ui-badge--accent" style={{ marginLeft: 8 }}>
               {activeProject.title} ({activeProject.engine})

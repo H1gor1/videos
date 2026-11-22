@@ -11,13 +11,13 @@ import type {
   OverlayItem,
   Scene,
   SceneObjectOverride,
-} from '@videos/core';
-import { createScene3DEngine } from '@videos/scenes';
+} from '@kinema/core';
+import { createScene3DEngine } from '@kinema/scenes';
 import {
   buildWordCaptionGroups,
   computeOverlayLayoutZones,
   estimateProportionalWordTimestamps,
-} from '@videos/overlays';
+} from '@kinema/overlays';
 import {
   buildCompositionSnapTarget,
   buildSafeAreaSnapTarget,

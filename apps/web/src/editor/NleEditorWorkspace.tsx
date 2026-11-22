@@ -20,8 +20,8 @@ import type {
   StageTemplateMetadata,
   TransitionType,
   ValidationResult,
-} from '@videos/core';
-import { buildWordCaptionGroups } from '@videos/overlays';
+} from '@kinema/core';
+import { buildWordCaptionGroups } from '@kinema/overlays';
 import { ThreeViewport, type Scene3DObjectDescriptor } from '../components/ThreeViewport.tsx';
 import { AudioWaveform } from './AudioWaveform.tsx';
 import { useEditHistory } from './useEditHistory.ts';

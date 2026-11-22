@@ -240,9 +240,9 @@ export class VideoService {
 
   constructor(rootDir = WORKSPACE_ROOT) {
     this.rootDir = rootDir;
-    this.dataDir = process.env.VIDEOS_DATA_DIR
-      ? path.resolve(process.env.VIDEOS_DATA_DIR)
-      : path.join(rootDir, 'data');
+    // KINEMA_DATA_DIR é o nome novo; VIDEOS_DATA_DIR permanece aceito por compatibilidade.
+    const dataDirEnv = process.env.KINEMA_DATA_DIR ?? process.env.VIDEOS_DATA_DIR;
+    this.dataDir = dataDirEnv ? path.resolve(dataDirEnv) : path.join(rootDir, 'data');
     this.projectsDir = path.join(this.dataDir, 'projects');
     this.libraryDir = path.join(rootDir, 'library');
     this.ensureStorage();

@@ -3,7 +3,7 @@
  * Origem: /home/higorlino/openmotion/studio/src/player/components/AudioWaveform.tsx e audioWaveformPeaks.ts
  */
 import React, { useEffect, useMemo, useRef } from 'react';
-import type { WordTimestamp } from '@videos/core';
+import type { WordTimestamp } from '@kinema/core';
 
 export function decimatePeaks(
   peaks: readonly number[],

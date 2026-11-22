@@ -3,8 +3,8 @@ import { execFile } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import type { AppSettings, VoiceConfig, WordTimestamp } from '@videos/core';
-import { estimateProportionalWordTimestamps } from '@videos/overlays';
+import type { AppSettings, VoiceConfig, WordTimestamp } from '@kinema/core';
+import { estimateProportionalWordTimestamps } from '@kinema/overlays';
 
 const execFileAsync = promisify(execFile);
 

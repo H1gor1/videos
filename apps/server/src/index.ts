@@ -11,10 +11,10 @@ import {
   type LibraryItemType,
   type ServiceChangeEvent,
   type VideoEngineId,
-} from '@videos/core';
-import { composeProject } from '@videos/composer';
-import { attachPipelineToService, synthesizeTextToSpeech } from '@videos/pipeline';
-import { createVideosMcpServer } from '../../mcp/src/server.ts';
+} from '@kinema/core';
+import { composeProject } from '@kinema/composer';
+import { attachPipelineToService, synthesizeTextToSpeech } from '@kinema/pipeline';
+import { createKinemaMcpServer } from '../../mcp/src/server.ts';
 import { buildOpenApiSpec } from './openapi.ts';
 
 export function createServerApp(rootDir = WORKSPACE_ROOT) {
@@ -30,7 +30,7 @@ export function createServerApp(rootDir = WORKSPACE_ROOT) {
   app.get('/api/health', (c) =>
     c.json({
       ok: true,
-      service: 'videos-studio-server',
+      service: 'kinema-server',
       version: '0.1.0',
       engines: service.listEngines().map((e) => e.id),
       projectCount: service.listProjects().length,
@@ -490,7 +490,7 @@ export function createServerApp(rootDir = WORKSPACE_ROOT) {
       sessionIdGenerator: undefined,
       enableJsonResponse: true,
     });
-    const mcpServer = createVideosMcpServer(service);
+    const mcpServer = createKinemaMcpServer(service);
     await mcpServer.connect(transport);
     return transport.handleRequest(c.req.raw);
   });
@@ -578,7 +578,7 @@ export function createServerApp(rootDir = WORKSPACE_ROOT) {
       return serveFileFromDisk(indexHtml);
     }
     return c.html(`<!doctype html><html><body style="font-family:sans-serif;background:#0f172a;color:#fff;padding:40px">
-      <h1>Videos Studio API Server Ativo</h1>
+      <h1>Kinema API Server Ativo</h1>
       <p>Rode <code>npm run build:web</code> ou acesse o Vite dev server.</p>
     </body></html>`);
   });
@@ -593,7 +593,7 @@ if (isMain) {
   const hostname = process.env.HOST || '127.0.0.1';
   const { app } = createServerApp(WORKSPACE_ROOT);
   serve({ fetch: app.fetch, port, hostname }, (info) => {
-    console.log(`🚀 Videos Studio Server + MCP HTTP rodando em http://${info.address}:${info.port}`);
+    console.log(`🚀 Kinema Server + MCP HTTP rodando em http://${info.address}:${info.port}`);
     console.log(`   • REST API & OpenAPI: http://${info.address}:${info.port}/api/openapi.json`);
     console.log(`   • MCP Streamable HTTP: http://${info.address}:${info.port}/mcp`);
     console.log(`   • SSE Events: http://${info.address}:${info.port}/api/events`);

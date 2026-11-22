@@ -1,5 +1,5 @@
-import { WORKSPACE_ROOT, getVideoService } from '@videos/core';
-import { attachPipelineToService, syncLibraryRepositories } from '@videos/pipeline';
+import { WORKSPACE_ROOT, getVideoService } from '@kinema/core';
+import { attachPipelineToService, syncLibraryRepositories } from '@kinema/pipeline';
 
 async function main() {
   const jsonOutput = process.argv.includes('--json');

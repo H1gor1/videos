@@ -1,8 +1,8 @@
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { createVideosMcpServer } from './server.ts';
+import { createKinemaMcpServer } from './server.ts';
 
 async function main() {
-  const server = createVideosMcpServer();
+  const server = createKinemaMcpServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }

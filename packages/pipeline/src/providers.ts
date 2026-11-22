@@ -13,7 +13,7 @@ import {
   type KineticBlock,
   type Scene,
   type VideoEngineId,
-} from '@videos/core';
+} from '@kinema/core';
 
 const execFileAsync = promisify(execFile);
 
@@ -110,7 +110,7 @@ export async function generateSceneImage(params: {
         },
         '9': {
           class_type: 'SaveImage',
-          inputs: { filename_prefix: 'videos_studio', images: ['8', 0] },
+          inputs: { filename_prefix: 'kinema', images: ['8', 0] },
         },
       };
 

@@ -14,17 +14,17 @@ import {
   createFreeformDemoProject,
   createKineticTop5Project,
   createSimulacaoDemoProject,
-} from '@videos/core';
+} from '@kinema/core';
 import {
   buildWordCaptionGroups,
   computeOverlayLayoutZones,
   estimateProportionalWordTimestamps,
   generateAssContent,
   generateSrtContent,
-} from '@videos/overlays';
-import { collectGlobalWordTimestamps, composeProject } from '@videos/composer';
+} from '@kinema/overlays';
+import { collectGlobalWordTimestamps, composeProject } from '@kinema/composer';
 
-describe('Schemas Zod (@videos/core)', () => {
+describe('Schemas Zod (@kinema/core)', () => {
   it('valida CharacterSchema com padrões blocky/chibi', () => {
     const char = CharacterSchema.parse({
       id: 'teste-char',
@@ -68,7 +68,7 @@ describe('Schemas Zod (@videos/core)', () => {
   });
 });
 
-describe('Sincronia de Legendas Word-by-Word (@videos/overlays)', () => {
+describe('Sincronia de Legendas Word-by-Word (@kinema/overlays)', () => {
   it('estima timestamps proporcionais e agrupa em 2-3 palavras sem atravessar pausas de cena', () => {
     const scene1Words = estimateProportionalWordTimestamps(
       'Na nossa simulação de dois mil e trinta',
@@ -185,12 +185,12 @@ describe('Sincronia de Legendas Word-by-Word (@videos/overlays)', () => {
   });
 });
 
-describe('Camada de Serviço, Composer Multi-Engine e Pipeline Mock (@videos/core + @videos/composer)', () => {
+describe('Camada de Serviço, Composer Multi-Engine e Pipeline Mock (@kinema/core + @kinema/composer)', () => {
   let tempRoot: string;
   let service: VideoService;
 
   beforeEach(() => {
-    tempRoot = mkdtempSync(path.join(tmpdir(), 'videos-test-'));
+    tempRoot = mkdtempSync(path.join(tmpdir(), 'kinema-test-'));
     service = new VideoService(tempRoot);
   });
 

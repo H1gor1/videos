@@ -4,8 +4,8 @@ import {
   getVideoService,
   type LibraryItemType,
   type VideoEngineId,
-} from '@videos/core';
-import { attachPipelineToService } from '@videos/pipeline';
+} from '@kinema/core';
+import { attachPipelineToService } from '@kinema/pipeline';
 
 function parseFlags(argv: string[]): { command: string; flags: Record<string, string>; json: boolean } {
   const args = argv.slice(2);
@@ -336,7 +336,7 @@ async function main() {
     default:
       outputResult(
         {
-          cli: '@videos/cli',
+          cli: '@kinema/cli',
           commands: [
             'list-templates',
             'list-engines',

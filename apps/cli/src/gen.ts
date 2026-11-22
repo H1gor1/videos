@@ -6,8 +6,8 @@ import {
   createKineticTop5Project,
   createSimulacaoDemoProject,
   getVideoService,
-} from '@videos/core';
-import { attachPipelineToService } from '@videos/pipeline';
+} from '@kinema/core';
+import { attachPipelineToService } from '@kinema/pipeline';
 
 async function main() {
   const args = process.argv.slice(2);

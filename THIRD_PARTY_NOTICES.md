@@ -20,9 +20,9 @@ Este projeto inclui arquivos, componentes de edição NLE, motor de snapping, vi
   - `apps/web/src/editor/useEditHistory.ts` — adaptado de `studio/src/hooks/usePersistentEditHistory.ts` e `useEditHistoryActions.ts` (histórico Undo/Redo integrado ao `VideoService`).
   - `apps/web/src/editor/NleEditorWorkspace.tsx` — adaptado de `studio/src/components/EditorShell.tsx`, `studio/src/components/editor/DomEditOverlay.tsx`, `studio/src/components/editor/LayersPanel.tsx`, `studio/src/components/editor/PropertyPanel.tsx` e `studio/src/components/nle/TimelinePane.tsx` (integrado com persistência estruturada de `OverlayItem`, gizmo 3D `TransformControls` via Three.js, timeline multitrilha NLE e sincronização SSE).
 - **Arquivos copiados e modificados em `apps/web/src/design-kits/` (a partir de `studio/src/motion/BrandKit*.tsx` e `studio/src/i18n/brand-kit-ui.json`)**:
-  - `apps/web/src/design-kits/DesignKitsWorkspace.tsx` — adaptado de `BrandKitPage.tsx`, `BrandKitDetail.tsx`, `BrandKitInspector.tsx`, `BrandKitLivePreview.tsx`, `BrandCatalogGallery.tsx` e `BrandFilmstrip.tsx` (traduzido para PT-BR, integrado ao schema `DesignKit` do `@videos/core`, com moodboard de referências, ficha Rea-Video, extração local de paleta de cores e preview multi-engine ao vivo).
+  - `apps/web/src/design-kits/DesignKitsWorkspace.tsx` — adaptado de `BrandKitPage.tsx`, `BrandKitDetail.tsx`, `BrandKitInspector.tsx`, `BrandKitLivePreview.tsx`, `BrandCatalogGallery.tsx` e `BrandFilmstrip.tsx` (traduzido para PT-BR, integrado ao schema `DesignKit` do `@kinema/core`, com moodboard de referências, ficha Rea-Video, extração local de paleta de cores e preview multi-engine ao vivo).
 - **Declaração de Modificação (Apache-2.0 Section 4(b))**:
-  Todos os arquivos listados acima foram modificados para operar sobre o modelo de domínio `VideoService` (`@videos/core`), suportando os engines `scene3d`, `kinetic` e `freeform`, gizmos 3D Three.js e interface em Português (PT-BR).
+  Todos os arquivos listados acima foram modificados para operar sobre o modelo de domínio `VideoService` (`@kinema/core`), suportando os engines `scene3d`, `kinetic` e `freeform`, gizmos 3D Three.js e interface em Português (PT-BR).
 
 ### Remix Icon (incluído em `icons.svg`)
 - **Licença**: Apache License, Version 2.0

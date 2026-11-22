@@ -13,7 +13,7 @@ import type {
   DesignKitPalette,
   Project,
   Scene,
-} from '@videos/core';
+} from '@kinema/core';
 import { ThreeViewport } from '../components/ThreeViewport.tsx';
 
 export interface DesignKitsWorkspaceProps {

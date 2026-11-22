@@ -1,6 +1,6 @@
 # Decisão Arquitetural: Editor de Vídeo NLE, Canvas Visual (2D/3D) e Design Kits
 
-Este documento registra a investigação técnica do editor do **OpenMotion Studio** (`/home/higorlino/openmotion/studio`, licenciado sob **Apache License 2.0**) e a decisão arquitetural adotada para integrá-lo ao **Videos Studio** (`/home/higorlino/.t3/projects/videos`).
+Este documento registra a investigação técnica do editor do **OpenMotion Studio** (`/home/higorlino/openmotion/studio`, licenciado sob **Apache License 2.0**) e a decisão arquitetural adotada para integrá-lo ao **Kinema** (`/home/higorlino/.t3/projects/videos`).
 
 ---
 
@@ -13,7 +13,7 @@ Foram avaliadas as duas abordagens previstas para reutilizar o OpenMotion Studio
 - **Obstáculos identificados**:
   1. **Volume e árvore de dependências privadas/acopladas**: `studio/src` contém **2.449 arquivos** e depende diretamente de 6 pacotes internos do ecossistema HyperFrames (`@hyperframes/core`, `@hyperframes/parsers`, `@hyperframes/player`, `@hyperframes/sdk`, `@hyperframes/shader-transitions`, `@hyperframes/studio-server`), além de `dockview-react`, `@base-ui/react`, 9 pacotes `@codemirror/*`, `@phosphor-icons/react`, `mediabunny`, `zustand`, Tailwind v4 e imports relativos para `../../../shared/*` do backend do OpenMotion.
   2. **Acoplamento ao modelo de persistência baseado em AST de arquivos HTML brutos**: Mesmo no modo `hostMount` (`hostMount.test.tsx`), `useTimelineEditing`, `useDomEditSession` e `useProjectFileWriter` exigem rotas de servidor `@hyperframes/studio-server` (`/api/projects/:id/files/*`, `/api/projects/:id/history/*`) que gravam mutações diretamente no HTML bruto via Acorn AST (`@hyperframes/core/gsap-parser-acorn`).
-  3. **Conflito com os engines estruturados (`scene3d` e `kinetic`)**: No **Videos Studio**, a fonte da verdade de um projeto reside no `VideoService` (`data/projects/<id>/project.json`), onde `scene3d` e `kinetic` armazenam cenas, templates 3D, poses, câmeras, `overlays[]`, `objectOverrides` 3D e tokens do `DesignKit`, regenerando o `index.html` determinístico a cada chamada de `composeProject()`. Se o editor alterasse apenas o CSS inline do `index.html` gerado, todas as edições seriam perdidas na próxima síntese de áudio ou renderização MP4.
+  3. **Conflito com os engines estruturados (`scene3d` e `kinetic`)**: No **Kinema**, a fonte da verdade de um projeto reside no `VideoService` (`data/projects/<id>/project.json`), onde `scene3d` e `kinetic` armazenam cenas, templates 3D, poses, câmeras, `overlays[]`, `objectOverrides` 3D e tokens do `DesignKit`, regenerando o `index.html` determinístico a cada chamada de `composeProject()`. Se o editor alterasse apenas o CSS inline do `index.html` gerado, todas as edições seriam perdidas na próxima síntese de áudio ou renderização MP4.
 
 ### Opção 2 (Escolhida): Cópia Seletiva e Adaptação dos Módulos do OpenMotion Studio para `apps/web`
 - **Por que a Opção 2 foi escolhida**:

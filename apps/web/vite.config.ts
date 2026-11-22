@@ -11,9 +11,9 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@videos/core': path.join(rootDir, 'packages/core/src/index.ts'),
-      '@videos/scenes': path.join(rootDir, 'packages/scenes/src/index.ts'),
-      '@videos/overlays': path.join(rootDir, 'packages/overlays/src/index.ts'),
+      '@kinema/core': path.join(rootDir, 'packages/core/src/index.ts'),
+      '@kinema/scenes': path.join(rootDir, 'packages/scenes/src/index.ts'),
+      '@kinema/overlays': path.join(rootDir, 'packages/overlays/src/index.ts'),
     },
   },
   server: {

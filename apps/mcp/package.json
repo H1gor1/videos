@@ -1,5 +1,5 @@
 {
-  "name": "@videos/mcp",
+  "name": "@kinema/mcp",
   "version": "0.1.0",
   "private": true,
   "type": "module",
